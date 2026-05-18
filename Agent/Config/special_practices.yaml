@@ -1,0 +1,17 @@
+- id: "SPECIAL_ACCUEIL"
+  titre: "Accueil"
+  duration_default: 15
+  categorie: "Spécial"
+  description: "Temps d'accueil et de mise en route des participants."
+
+- id: "SPECIAL_PAUSE"
+  titre: "Pause"
+  duration_default: 10
+  categorie: "Spécial"
+  description: "Pause café ou détente."
+
+- id: "SPECIAL_DEBRIEFING"
+  titre: "Débriefing"
+  duration_default: 20
+  categorie: "Spécial"
+  description: "Retour sur la session, échanges libres, prochaines étapes."

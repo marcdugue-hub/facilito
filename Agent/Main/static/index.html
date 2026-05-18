@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Facilito</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Top bar ──────────────────────────────────────────────── -->
+  <header id="topbar">
+    <span class="logo">Facilito</span>
+    <span class="breadcrumb" id="breadcrumb"></span>
+    <button class="nav-btn" onclick="App.showFacilitators()">Facilitateurs</button>
+    <button class="nav-btn" onclick="App.showClients()">Clients &amp; Équipes</button>
+    <button class="nav-btn nav-btn-icon" onclick="App.showDashboard()" title="Tableau de bord">⚙️</button>
+  </header>
+
+  <!-- ── Body (main + agent) ──────────────────────────────────── -->
+  <div id="body">
+
+    <!-- ── Main panel ─────────────────────────────────────────── -->
+    <main id="main-panel">
+
+      <!-- Screen: Facilitateurs -->
+      <section id="screen-facilitators" class="screen active">
+        <div class="page-header">
+          <h2>Facilitateurs</h2>
+          <button class="btn btn-primary" onclick="App.showNewFacilitator()">+ Nouveau facilitateur</button>
+        </div>
+        <div id="form-new-facilitator" style="display:none" class="section-block">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nom du facilitateur</label>
+              <input id="input-facilitator-name" type="text" placeholder="Prénom Nom" />
+            </div>
+            <button class="btn btn-primary" onclick="App.createFacilitator()">Créer</button>
+            <button class="btn btn-outline" onclick="App.hideNewFacilitator()">Annuler</button>
+          </div>
+        </div>
+        <div id="facilitator-list" class="card-grid"></div>
+      </section>
+
+      <!-- Screen: Sessions -->
+      <section id="screen-sessions" class="screen">
+        <div class="page-header">
+          <h2 id="sessions-title">Sessions</h2>
+          <button class="btn btn-primary" onclick="App.showNewSession()">+ Nouvelle session</button>
+        </div>
+        <div id="form-new-session" style="display:none" class="section-block">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Titre *</label>
+              <input id="input-session-title" type="text" placeholder="Titre de la session"/>
+            </div>
+            <div class="form-group" style="max-width:160px">
+              <label>Date</label>
+              <input id="input-session-date" type="date"/>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Objectif</label>
+              <textarea id="input-session-objective" placeholder="Objectif général de l'atelier…"></textarea>
+            </div>
+          </div>
+          <div class="form-row">
+            <button class="btn btn-primary" onclick="App.createSession()">Créer</button>
+            <button class="btn btn-outline" onclick="App.hideNewSession()">Annuler</button>
+          </div>
+        </div>
+        <div id="session-list" class="card-grid"></div>
+      </section>
+
+      <!-- Screen: Session detail -->
+      <section id="screen-session" class="screen">
+
+        <!-- Meta -->
+        <div class="session-meta" id="session-meta-block">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <h2 id="session-meta-title" class="editable" onclick="App.editSessionField('title')" title="Cliquer pour modifier"></h2>
+            <span id="session-meta-badge" class="badge"></span>
+            <select class="status-select" id="session-status-select" onchange="App.updateSessionStatus(this.value)">
+              <option value="draft">Brouillon</option>
+              <option value="confirmed">Confirmé</option>
+              <option value="finished">Terminé</option>
+            </select>
+            <button class="btn btn-outline btn-sm" onclick="App.exportPDF()" style="margin-left:auto">⬇ PDF</button>
+          </div>
+          <div class="meta-row" id="session-meta-row"></div>
+        </div>
+
+        <!-- Participants -->
+        <div class="section-block">
+          <h3>Participants <span id="participants-count" style="font-weight:400;color:var(--muted)"></span></h3>
+          <div class="form-row" style="margin-bottom:10px">
+            <div class="form-group"><label>Prénom</label><input id="p-first" placeholder="Prénom"/></div>
+            <div class="form-group"><label>Nom *</label><input id="p-last" placeholder="Nom"/></div>
+            <div class="form-group"><label>Email</label><input id="p-email" type="email" placeholder="optionnel"/></div>
+            <div class="form-group"><label>Poste</label><input id="p-role" placeholder="optionnel"/></div>
+            <button class="btn btn-primary btn-sm" style="align-self:flex-end" onclick="App.addParticipant()">+ Ajouter</button>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="max-width:220px">
+              <label>Importer une équipe</label>
+              <select id="select-team"><option value="">— Choisir une équipe —</option></select>
+            </div>
+            <button class="btn btn-outline btn-sm" style="align-self:flex-end" onclick="App.addTeam()">Importer l'équipe</button>
+          </div>
+          <ul id="participant-list" class="participant-list"></ul>
+        </div>
+
+        <!-- Déroulé -->
+        <div class="section-block">
+          <h3>Déroulé</h3>
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="App.showSpecialPracticeMenu()">+ Pratique spéciale</button>
+          </div>
+          <div id="special-practice-menu" style="display:none" class="form-row">
+            <div class="form-group" style="max-width:220px">
+              <label>Pratique spéciale</label>
+              <select id="select-special"></select>
+            </div>
+            <button class="btn btn-primary btn-sm" style="align-self:flex-end" onclick="App.addSpecialPractice()">Ajouter</button>
+            <button class="btn btn-outline btn-sm" style="align-self:flex-end" onclick="App.hideSpecialPracticeMenu()">Annuler</button>
+          </div>
+          <ul id="practice-list" class="practice-list"></ul>
+          <div class="total-duration" id="total-duration"></div>
+        </div>
+
+      </section>
+
+      <!-- Screen: Clients & Équipes -->
+      <section id="screen-clients" class="screen">
+        <div class="page-header">
+          <h2>Clients &amp; Équipes</h2>
+        </div>
+        <div class="tabs">
+          <button class="tab-btn active" onclick="App.showTab('clients')">Clients</button>
+          <button class="tab-btn" onclick="App.showTab('teams')">Équipes</button>
+        </div>
+
+        <!-- Clients tab -->
+        <div id="tab-clients">
+          <div class="section-block">
+            <h3>Nouveau client</h3>
+            <div class="form-row">
+              <div class="form-group"><input id="input-client-name" placeholder="Nom du client"/></div>
+              <button class="btn btn-primary btn-sm" onclick="App.createClient()">Créer</button>
+            </div>
+          </div>
+          <div id="client-list" class="card-grid"></div>
+        </div>
+
+        <!-- Teams tab -->
+        <div id="tab-teams" style="display:none">
+          <div class="section-block">
+            <h3>Nouvelle équipe</h3>
+            <div class="form-row">
+              <div class="form-group"><input id="input-team-name" placeholder="Nom de l'équipe"/></div>
+              <div class="form-group" style="max-width:200px">
+                <select id="select-team-client"><option value="">— Client (optionnel) —</option></select>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="App.createTeam()">Créer</button>
+            </div>
+          </div>
+          <div id="team-list" class="card-grid"></div>
+        </div>
+      </section>
+
+      <!-- Screen: Dashboard -->
+      <section id="screen-dashboard" class="screen">
+        <div class="page-header">
+          <h2>Tableau de bord</h2>
+          <button class="btn btn-outline btn-sm" onclick="App.refreshDashboard()">↻ Rafraîchir</button>
+        </div>
+
+        <!-- KPI cards -->
+        <div id="kpi-grid" class="kpi-grid"></div>
+
+        <!-- Cost config -->
+        <div class="section-block" style="margin-top:20px">
+          <h3>Coût des tokens ($ / million)</h3>
+          <div class="form-row">
+            <div class="form-group" style="max-width:180px">
+              <label>Tokens entrants (IN)</label>
+              <input id="cost-in" type="number" step="0.01" min="0" placeholder="1.5"/>
+            </div>
+            <div class="form-group" style="max-width:180px">
+              <label>Tokens sortants (OUT)</label>
+              <input id="cost-out" type="number" step="0.01" min="0" placeholder="2.5"/>
+            </div>
+            <button class="btn btn-primary btn-sm" style="align-self:flex-end" onclick="App.saveCostConfig()">Enregistrer</button>
+          </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="section-block" style="margin-top:20px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+            <h3 style="margin:0">Logs</h3>
+            <button class="log-filter active" data-type="llm" onclick="App.toggleLogFilter('llm',this)">LLM</button>
+            <button class="log-filter active" data-type="rag" onclick="App.toggleLogFilter('rag',this)">RAG</button>
+            <button class="log-filter active" data-type="db"  onclick="App.toggleLogFilter('db',this)">DB</button>
+            <button class="log-filter active" data-type="resolution" onclick="App.toggleLogFilter('resolution',this)">Résolution</button>
+          </div>
+          <div id="log-viewer" class="log-viewer"></div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ── Agent panel (desktop) ──────────────────────────────── -->
+    <aside id="agent-panel">
+      <div id="agent-header">
+        <img id="agent-avatar" src="" alt="Agent"/>
+        <div>
+          <h4>Assistant Facilito</h4>
+          <p id="agent-mode-label">Mode IA actif</p>
+        </div>
+      </div>
+      <div id="chat-messages"></div>
+      <div id="chat-input-area">
+        <textarea id="chat-input" rows="1" placeholder="Posez une question ou demandez à l'agent d'agir…"></textarea>
+        <button id="chat-send" onclick="App.sendChat()" title="Envoyer">&#9658;</button>
+      </div>
+    </aside>
+
+  </div><!-- #body -->
+</div><!-- #app -->
+
+<!-- Mobile agent bubble -->
+<button id="agent-bubble" onclick="App.toggleMobileAgent()" title="Ouvrir l'assistant">💬</button>
+<div id="agent-panel-mobile">
+  <div id="agent-header-mobile" style="background:var(--green-l);border-bottom:1px solid var(--green-m);padding:12px 16px;display:flex;align-items:center;gap:12px;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:12px">
+      <img id="agent-avatar-mobile" style="width:44px;height:44px;border-radius:50%;object-fit:cover" src="" alt="Agent"/>
+      <h4 style="color:var(--green)">Assistant Facilito</h4>
+    </div>
+    <button class="btn-icon" onclick="App.toggleMobileAgent()" style="font-size:1.3rem">✕</button>
+  </div>
+  <div id="chat-messages-mobile" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px"></div>
+  <div style="border-top:1px solid var(--border);padding:10px;display:flex;gap:8px;align-items:flex-end">
+    <textarea id="chat-input-mobile" rows="1" style="flex:1;resize:none;min-height:40px;max-height:120px;border-radius:10px;padding:8px 12px;font-size:.88rem;border:1px solid var(--border)" placeholder="Message…"></textarea>
+    <button style="flex-shrink:0;width:40px;height:40px;border-radius:50%;background:var(--green);color:#fff;border:none;font-size:1.1rem;display:flex;align-items:center;justify-content:center" onclick="App.sendChatMobile()">&#9658;</button>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

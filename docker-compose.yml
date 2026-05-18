@@ -1,0 +1,14 @@
+services:
+  facilito:
+    build: .
+    image: facilito:v1
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./data:/app/data    # bind mount — SQLite + ChromaDB partagés avec l'hôte
+    env_file:
+      - Agent/.env
+    environment:
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "8000"
+    restart: unless-stopped

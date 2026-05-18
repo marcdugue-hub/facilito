@@ -1,0 +1,43 @@
+# Clés API et configuration sensible
+Agent/.env
+.env
+*.env
+
+# Données runtime (SQLite + ChromaDB) — recréées localement
+data/
+chroma_db/
+facilito.db
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Docker volumes locaux
+docker-data/
+
+# Claude Code interne
+.claude/
