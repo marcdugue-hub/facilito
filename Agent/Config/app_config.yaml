@@ -11,7 +11,7 @@ chroma:
   collection: "facilito_practices"
 
 embedding:
-  model: "text-embedding-3-small"
+  model: "paraphrase-multilingual-MiniLM-L12-v2"
 
 llm:
   openai_model: "gpt-4o"

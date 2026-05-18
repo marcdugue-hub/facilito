@@ -10,6 +10,12 @@
   categorie: "Spécial"
   description: "Pause café ou détente."
 
+- id: "SPECIAL_PAUSE_DEJEUNER"
+  titre: "Pause déjeuner"
+  duration_default: 75
+  categorie: "Spécial"
+  description: "Pause déjeuner."
+
 - id: "SPECIAL_DEBRIEFING"
   titre: "Débriefing"
   duration_default: 20

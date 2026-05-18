@@ -14,11 +14,11 @@ def list_sessions(facilitator_id: int) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def create_session(facilitator_id: int, title: str, date: str = None, objective: str = None) -> dict:
+def create_session(facilitator_id: int, title: str, date: str = None, start_time: str = None, objective: str = None) -> dict:
     with get_connection() as conn:
         cur = conn.execute(
-            "INSERT INTO sessions (facilitator_id, title, date, objective) VALUES (?,?,?,?)",
-            (facilitator_id, title, date, objective),
+            "INSERT INTO sessions (facilitator_id, title, date, start_time, objective) VALUES (?,?,?,?,?)",
+            (facilitator_id, title, date, start_time, objective),
         )
         conn.commit()
         row = conn.execute("SELECT * FROM sessions WHERE id = ?", (cur.lastrowid,)).fetchone()
@@ -32,7 +32,7 @@ def get_session(session_id: int) -> dict | None:
 
 
 def update_session(session_id: int, **kwargs) -> dict | None:
-    allowed = {"title", "date", "objective", "status"}
+    allowed = {"title", "date", "start_time", "objective", "status"}
     fields = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
     if not fields:
         return get_session(session_id)

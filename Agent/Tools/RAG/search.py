@@ -1,12 +1,9 @@
-import os
 from functools import lru_cache
 from pathlib import Path
 
 import yaml
-from dotenv import load_dotenv
 
 _BASE_DIR = Path(__file__).resolve().parents[3]
-load_dotenv(_BASE_DIR / "Agent" / ".env")
 
 
 def _load_config() -> dict:
@@ -24,16 +21,9 @@ def _get_collection():
 
 def search_practices(query: str, n_results: int = 5) -> list[dict]:
     """Semantic search in ChromaDB. Returns list of practice metadata dicts."""
-    from openai import OpenAI
+    from Agent.Tools.RAG.embedder import get_embeddings
 
-    cfg = _load_config()
-    openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-
-    response = openai_client.embeddings.create(
-        model=cfg["embedding"]["model"],
-        input=[query],
-    )
-    query_embedding = response.data[0].embedding
+    query_embedding = get_embeddings([query])[0]
 
     collection = _get_collection()
     results = collection.query(

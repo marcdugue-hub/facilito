@@ -19,3 +19,12 @@ def get_facilitator(facilitator_id: int) -> dict | None:
     with get_connection() as conn:
         row = conn.execute("SELECT * FROM facilitators WHERE id = ?", (facilitator_id,)).fetchone()
     return dict(row) if row else None
+
+
+def delete_facilitator(facilitator_id: int) -> bool:
+    with get_connection() as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("DELETE FROM sessions WHERE facilitator_id = ?", (facilitator_id,))
+        cur = conn.execute("DELETE FROM facilitators WHERE id = ?", (facilitator_id,))
+        conn.commit()
+    return cur.rowcount > 0

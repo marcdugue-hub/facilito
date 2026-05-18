@@ -22,6 +22,13 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(sessions)")}
+    if "start_time" not in cols:
+        conn.execute("ALTER TABLE sessions ADD COLUMN start_time TEXT")
+        conn.commit()
+
+
 def init_db() -> None:
     with get_connection() as conn:
         conn.executescript("""
@@ -60,6 +67,7 @@ def init_db() -> None:
             facilitator_id INTEGER NOT NULL REFERENCES facilitators(id),
             title          TEXT NOT NULL,
             date           TEXT,
+            start_time     TEXT,
             objective      TEXT,
             status         TEXT NOT NULL DEFAULT 'draft',
             created_at     TEXT NOT NULL DEFAULT (datetime('now'))
@@ -122,3 +130,4 @@ def init_db() -> None:
         INSERT OR IGNORE INTO cost_config (key, value) VALUES ('cost_in',  1.5);
         INSERT OR IGNORE INTO cost_config (key, value) VALUES ('cost_out', 2.5);
         """)
+        _migrate(conn)

@@ -82,16 +82,13 @@ def load_practices() -> list[dict]:
 
 def init_chroma(reinit: bool = False) -> None:
     import chromadb
-    from openai import OpenAI
-    from dotenv import load_dotenv
-    import os
 
-    load_dotenv(_BASE_DIR / "Agent" / ".env")
+    from Agent.Tools.RAG.embedder import get_embeddings
+
     cfg = _load_config()
 
     chroma_path = str(_BASE_DIR / cfg["chroma"]["path"])
     collection_name = cfg["chroma"]["collection"]
-    embedding_model = cfg["embedding"]["model"]
 
     client = chromadb.PersistentClient(path=chroma_path)
 
@@ -113,7 +110,6 @@ def init_chroma(reinit: bool = False) -> None:
         metadata={"hnsw:space": "cosine"},
     )
 
-    openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
     practices = load_practices()
     print(f"  {len(practices)} pratiques trouvées. Génération des embeddings...")
 
@@ -121,8 +117,7 @@ def init_chroma(reinit: bool = False) -> None:
     for i in range(0, len(practices), batch_size):
         batch = practices[i:i + batch_size]
         texts = [p["text_to_embed"] for p in batch]
-        response = openai_client.embeddings.create(model=embedding_model, input=texts)
-        embeddings = [e.embedding for e in response.data]
+        embeddings = get_embeddings(texts)
 
         collection.add(
             ids=[p["id"] for p in batch],

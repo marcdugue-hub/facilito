@@ -6,11 +6,7 @@ from unittest.mock import patch, MagicMock
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _fake_embedding():
-    emb = MagicMock()
-    emb.embedding = [0.1] * 1536
-    resp = MagicMock()
-    resp.data = [emb]
-    return resp
+    return [[0.1] * 384]
 
 
 def _fake_collection(meta_list, distance_list, id_list):
@@ -48,9 +44,9 @@ def test_search_practices_returns_results():
 
     with patch("Agent.Tools.RAG.search._get_collection",
                return_value=_fake_collection([_SAMPLE_META], [0.1], ["1"])), \
-         patch("openai.OpenAI") as mock_oai:
+         patch("Agent.Tools.RAG.embedder.get_embeddings",
+               return_value=_fake_embedding()):
 
-        mock_oai.return_value.embeddings.create.return_value = _fake_embedding()
         results = search_practices("idées créatives", n_results=3)
 
     assert len(results) == 1
@@ -64,9 +60,9 @@ def test_search_practices_score_computed_as_one_minus_distance():
 
     with patch("Agent.Tools.RAG.search._get_collection",
                return_value=_fake_collection([_SAMPLE_META], [0.25], ["1"])), \
-         patch("openai.OpenAI") as mock_oai:
+         patch("Agent.Tools.RAG.embedder.get_embeddings",
+               return_value=_fake_embedding()):
 
-        mock_oai.return_value.embeddings.create.return_value = _fake_embedding()
         results = search_practices("test")
 
     assert abs(results[0]["score"] - 0.75) < 0.001
@@ -78,9 +74,9 @@ def test_search_practices_empty_collection_returns_empty_list():
 
     with patch("Agent.Tools.RAG.search._get_collection",
                return_value=_fake_collection([], [], [])), \
-         patch("openai.OpenAI") as mock_oai:
+         patch("Agent.Tools.RAG.embedder.get_embeddings",
+               return_value=_fake_embedding()):
 
-        mock_oai.return_value.embeddings.create.return_value = _fake_embedding()
         results = search_practices("icebreaker", n_results=5)
 
     assert results == []
@@ -93,9 +89,9 @@ def test_search_practices_n_results_capped_by_collection_size():
     meta_list = [_SAMPLE_META, {**_SAMPLE_META, "titre": "Méthode B"}]
     with patch("Agent.Tools.RAG.search._get_collection",
                return_value=_fake_collection(meta_list, [0.1, 0.2], ["1", "2"])), \
-         patch("openai.OpenAI") as mock_oai:
+         patch("Agent.Tools.RAG.embedder.get_embeddings",
+               return_value=_fake_embedding()):
 
-        mock_oai.return_value.embeddings.create.return_value = _fake_embedding()
         coll = _fake_collection(meta_list, [0.1, 0.2], ["1", "2"])
         coll.query.assert_not_called  # just verifying mock is set up
         results = search_practices("test", n_results=10)  # ask for 10, only 2 available
