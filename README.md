@@ -9,7 +9,14 @@ Vibe codé.
 ### Prérequis
 
 - [Docker](https://docs.docker.com/get-docker/) et [Docker Compose](https://docs.docker.com/compose/) installés
-- Clés API renseignées dans `Agent/.env` :
+- Variables d’environnement définies dans `Agent/.env`
+- Créer `Agent/.env` à partir de `Agent/.env.example` et y renseigner vos clés API :
+
+```bash
+cp Agent/.env.example Agent/.env
+```
+
+Puis éditez `Agent/.env` :
 
 ```env
 OPENAI_API_KEY=sk-...
@@ -71,6 +78,12 @@ python -m Agent.Tools.RAG.init_rag
 
 ```bash
 python -m pip install -r requirements.txt
+```
+
+- Copiez `Agent/.env.example` en `Agent/.env` et renseignez vos clés API :
+
+```bash
+cp Agent/.env.example Agent/.env
 ```
 
 ### 1. Initialiser le RAG
