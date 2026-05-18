@@ -29,6 +29,20 @@ from Agent.Tools.RAG.search import search_practices
 from Agent.Tools.Database.analytics import (
     log_event, log_rating, get_kpis, get_logs, get_cost_config, set_cost_config
 )
+from Agent.Tools.security import (
+    call_llm_with_retry,
+    filter_sensitive_data,
+    validate_request_rate,
+    validate_user_input,
+)
+from Agent.Tools.erreur import (
+    ExternalServiceError,
+    InvalidAPIKeyError,
+    InvalidUserInputError,
+    InjectionDetectedError,
+    LLMTimeoutError,
+    RateLimitError,
+)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -656,6 +670,16 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
         user_msg = body.message
         start_time = time.time()
 
+        try:
+            validate_request_rate(session_id)
+            user_msg = validate_user_input(user_msg)
+        except InvalidUserInputError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except InjectionDetectedError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        except RateLimitError as exc:
+            raise HTTPException(status_code=429, detail=str(exc))
+
         ctx = db_ses.get_session_context(session_id)
         system_prompt = build_system_prompt(ctx)
         history = get_history(session_id)
@@ -668,7 +692,28 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
         max_iterations = 10
         for _ in range(max_iterations):
             llm_start = time.time()
-            response, usage = provider.chat(messages, TOOLS)
+            try:
+                response, usage = call_llm_with_retry(
+                    provider,
+                    messages,
+                    TOOLS,
+                    timeout=int(os.environ.get("LLM_TIMEOUT_SECONDS", 20)),
+                    max_retries=3,
+                )
+            except LLMTimeoutError as exc:
+                log_event(
+                    session_id=session_id,
+                    event_type="llm",
+                    summary="LLM timeout",
+                    payload=str(exc),
+                    duration_ms=int((time.time() - llm_start) * 1000),
+                )
+                raise HTTPException(status_code=504, detail="Le service LLM n'a pas répondu à temps.")
+            except InvalidAPIKeyError:
+                raise HTTPException(status_code=401, detail="Clé API invalide.")
+            except ExternalServiceError as exc:
+                raise HTTPException(status_code=502, detail=f"Erreur externe du LLM : {str(exc)}")
+
             llm_ms = int((time.time() - llm_start) * 1000)
 
             t_in  = usage.get("prompt_tokens", 0)
@@ -697,6 +742,8 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
                 else:
                     resolved = True
                     display_text = raw_text.replace("||RÉSOLU||", "").strip()
+
+                display_text = filter_sensitive_data(display_text)
 
                 total_ms = int((time.time() - start_time) * 1000)
                 log_event(
@@ -747,7 +794,9 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
                     fallback=fallback,
                 )
 
-                tool_results.append({"tool": fn_name, "args": fn_args, "result": json.loads(result_str)})
+                parsed_result = json.loads(result_str)
+                safe_result = filter_sensitive_data(parsed_result)
+                tool_results.append({"tool": fn_name, "args": fn_args, "result": safe_result})
                 messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result_str})
 
         total_ms = int((time.time() - start_time) * 1000)

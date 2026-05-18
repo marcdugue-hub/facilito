@@ -41,8 +41,30 @@ Cela crée `data/chroma_db/` et `data/facilito.db` sur la machine hôte.
 
 ### 3. Démarrer l'application
 
+**Option A : avec docker-compose**
+
 ```bash
 docker-compose up -d
+```
+
+**Option B : avec docker run**
+
+```bash
+docker run -d \
+  -p 8001:8001 \
+  -e OPENAI_API_KEY=sk-your-key-here \
+  -v $(pwd)/data:/app/data \
+  facilito:v1
+```
+
+Ou avec DeepSeek :
+
+```bash
+docker run -d \
+  -p 8001:8001 \
+  -e DEEPSEEK_API_KEY=sk-your-key-here \
+  -v $(pwd)/data:/app/data \
+  facilito:v1 python -m Agent.Main.main --deepseek
 ```
 
 ### Interface
