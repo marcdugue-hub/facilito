@@ -33,6 +33,13 @@
           <h2>Facilitateurs</h2>
           <button class="btn btn-primary" onclick="App.showNewFacilitator()">+ Nouveau facilitateur</button>
         </div>
+        <div class="mascotte-strip">
+          <div class="mascotte-strip-text">
+            <strong>Bienvenue !</strong>
+            <p>Sélectionnez un facilitateur pour accéder à ses sessions, ou créez-en un nouveau pour commencer à concevoir vos ateliers.</p>
+          </div>
+          <img src="/mascotte/tldrawFile-15.png" alt="">
+        </div>
         <div id="form-new-facilitator" style="display:none" class="section-block">
           <div class="form-row">
             <div class="form-group">
@@ -49,8 +56,18 @@
       <!-- Screen: Sessions -->
       <section id="screen-sessions" class="screen">
         <div class="page-header">
-          <h2 id="sessions-title">Sessions</h2>
+          <div style="display:flex;align-items:center;gap:12px">
+            <button class="btn btn-outline btn-sm back-btn" onclick="App.showFacilitators()">← Facilitateurs</button>
+            <h2 id="sessions-title">Sessions</h2>
+          </div>
           <button class="btn btn-primary" onclick="App.showNewSession()">+ Nouvelle session</button>
+        </div>
+        <div class="mascotte-strip">
+          <div class="mascotte-strip-text">
+            <strong>Vos sessions d'atelier</strong>
+            <p>Planifiez un nouvel atelier ou reprenez une session en cours. L'agent IA enrichit votre programme avec les pratiques les plus adaptées.</p>
+          </div>
+          <img src="/mascotte/tldrawFile-10.png" alt="">
         </div>
         <div id="form-new-session" style="display:none" class="section-block">
           <div class="form-row">
@@ -61,6 +78,10 @@
             <div class="form-group" style="max-width:160px">
               <label>Date</label>
               <input id="input-session-date" type="date"/>
+            </div>
+            <div class="form-group" style="max-width:120px">
+              <label>Heure de début</label>
+              <input id="input-session-start-time" type="time"/>
             </div>
           </div>
           <div class="form-row">
@@ -80,8 +101,13 @@
       <!-- Screen: Session detail -->
       <section id="screen-session" class="screen">
 
+        <div class="back-row">
+          <button class="btn btn-outline btn-sm back-btn" onclick="App.backToSessions()">← Sessions</button>
+        </div>
+
         <!-- Meta -->
         <div class="session-meta" id="session-meta-block">
+          <img class="mascotte-inline" src="/mascotte/tldrawFile-11.png" alt="">
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
             <h2 id="session-meta-title" class="editable" onclick="App.editSessionField('title')" title="Cliquer pour modifier"></h2>
             <span id="session-meta-badge" class="badge"></span>
@@ -140,9 +166,17 @@
         <div class="page-header">
           <h2>Clients &amp; Équipes</h2>
         </div>
+        <div class="mascotte-strip">
+          <div class="mascotte-strip-text">
+            <strong>Clients &amp; Équipes</strong>
+            <p>Gérez vos clients et constituez des équipes réutilisables. Importez-les directement dans vos sessions en un clic.</p>
+          </div>
+          <img src="/mascotte/tldrawFile-14.png" alt="">
+        </div>
         <div class="tabs">
           <button class="tab-btn active" onclick="App.showTab('clients')">Clients</button>
           <button class="tab-btn" onclick="App.showTab('teams')">Équipes</button>
+          <button class="tab-btn" onclick="App.showTab('participants')">Participants</button>
         </div>
 
         <!-- Clients tab -->
@@ -159,6 +193,13 @@
 
         <!-- Teams tab -->
         <div id="tab-teams" style="display:none">
+          <div class="mascotte-strip">
+            <div class="mascotte-strip-text">
+              <strong>Équipes</strong>
+              <p>Constituez des équipes réutilisables et importez-les dans vos sessions en un clic. Chaque équipe peut être rattachée à un client.</p>
+            </div>
+            <img src="/mascotte/tldrawFile-3.png" alt="">
+          </div>
           <div class="section-block">
             <h3>Nouvelle équipe</h3>
             <div class="form-row">
@@ -171,6 +212,21 @@
           </div>
           <div id="team-list" class="card-grid"></div>
         </div>
+
+        <!-- Participants tab -->
+        <div id="tab-participants" style="display:none">
+          <div class="mascotte-strip">
+            <div class="mascotte-strip-text">
+              <strong>Tous les participants</strong>
+              <p>Retrouvez ici l'ensemble des participants connus. Modifiez leurs informations ou supprimez ceux qui ne sont plus actifs.</p>
+            </div>
+            <img src="/mascotte/tldrawFile-5.png" alt="">
+          </div>
+          <div class="section-block">
+            <h3>Liste des participants</h3>
+            <div id="all-participants-list"></div>
+          </div>
+        </div>
       </section>
 
       <!-- Screen: Dashboard -->
@@ -178,6 +234,13 @@
         <div class="page-header">
           <h2>Tableau de bord</h2>
           <button class="btn btn-outline btn-sm" onclick="App.refreshDashboard()">↻ Rafraîchir</button>
+        </div>
+        <div class="mascotte-strip">
+          <div class="mascotte-strip-text">
+            <strong>Activité de l'agent</strong>
+            <p>Suivez les appels LLM et RAG, analysez les coûts par token et consultez les logs en temps réel.</p>
+          </div>
+          <img src="/mascotte/tldrawFile-2.png" alt="">
         </div>
 
         <!-- KPI cards -->
@@ -197,6 +260,18 @@
             </div>
             <button class="btn btn-primary btn-sm" style="align-self:flex-end" onclick="App.saveCostConfig()">Enregistrer</button>
           </div>
+        </div>
+
+        <!-- Voix du bot -->
+        <div class="section-block" style="margin-top:20px">
+          <h3>Voix du bot</h3>
+          <div class="form-row">
+            <div class="form-group" style="max-width:320px">
+              <label>Voix de synthèse vocale</label>
+              <select id="voice-select" onchange="App.changeVoice(this.value)"></select>
+            </div>
+          </div>
+          <p style="color:var(--muted);font-size:.82rem;margin-top:4px">Sélectionnez une voix pour l'écouter.</p>
         </div>
 
         <!-- Logs -->
@@ -222,12 +297,6 @@
           <h4>Assistant Facilito</h4>
           <p id="agent-mode-label">Mode IA actif</p>
         </div>
-        <button id="voice-settings-btn" onclick="App.toggleVoiceSettings()" title="Paramètres voix">⚙️</button>
-      </div>
-      <div id="voice-settings-panel" style="display:none">
-        <label>Voix du bot</label>
-        <select id="voice-select" onchange="App.changeVoice(this.value)"></select>
-        <p class="voice-hint">Sélectionner une voix pour l'écouter.</p>
       </div>
       <div id="chat-messages"></div>
       <div id="chat-input-area">
@@ -248,7 +317,6 @@
       <img id="agent-avatar-mobile" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--pink)" src="" alt="Agent"/>
       <h4 style="color:#fff;font-weight:700">Assistant Facilito</h4>
     </div>
-    <button onclick="App.toggleVoiceSettings()" title="Paramètres voix" style="background:none;border:none;font-size:1.1rem;cursor:pointer;padding:4px">⚙️</button>
     <button class="btn-icon" onclick="App.toggleMobileAgent()" style="font-size:1.3rem;color:#fff">✕</button>
   </div>
   <div id="chat-messages-mobile" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px"></div>

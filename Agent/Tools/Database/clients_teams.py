@@ -88,3 +88,24 @@ def remove_participant_from_team(team_id: int, participant_id: int) -> bool:
         )
         conn.commit()
     return True
+
+
+def delete_team(team_id: int) -> bool:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM team_participants WHERE team_id = ?", (team_id,))
+        conn.execute("DELETE FROM teams WHERE id = ?", (team_id,))
+        conn.commit()
+    return True
+
+
+def get_team_participants_not_in_sessions(team_id: int) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT p.* FROM participants p
+               JOIN team_participants tp ON tp.participant_id = p.id
+               WHERE tp.team_id = ?
+               AND p.id NOT IN (SELECT DISTINCT participant_id FROM session_participants)
+               ORDER BY p.last_name, p.first_name""",
+            (team_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]

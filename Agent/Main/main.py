@@ -414,11 +414,13 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
         facilitator_id: int
         title: str
         date: str | None = None
+        start_time: str | None = None
         objective: str | None = None
 
     class SessionUpdate(BaseModel):
         title: str | None = None
         date: str | None = None
+        start_time: str | None = None
         objective: str | None = None
         status: str | None = None
 
@@ -462,6 +464,12 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
         email: str | None = None
         role: str | None = None
 
+    class ParticipantUpdate(BaseModel):
+        first_name: str | None = None
+        last_name: str | None = None
+        email: str | None = None
+        role: str | None = None
+
     class ChatMessage(BaseModel):
         session_id: int
         message: str
@@ -488,6 +496,11 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
             raise HTTPException(404)
         return f
 
+    @app.delete("/api/facilitators/{fid}", status_code=204)
+    def delete_facilitator_route(fid: int):
+        if not db_fac.delete_facilitator(fid):
+            raise HTTPException(404)
+
     @app.get("/api/facilitators/{fid}/sessions")
     def get_facilitator_sessions(fid: int):
         return db_ses.list_sessions(fid)
@@ -495,7 +508,7 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
     # Sessions
     @app.post("/api/sessions", status_code=201)
     def post_session(body: SessionCreate):
-        return db_ses.create_session(body.facilitator_id, body.title, body.date, body.objective)
+        return db_ses.create_session(body.facilitator_id, body.title, body.date, body.start_time, body.objective)
 
     @app.get("/api/sessions/{sid}")
     def get_session(sid: int):
@@ -584,6 +597,10 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
     def get_team_participants(tid: int):
         return db_ct.get_team_participants(tid)
 
+    @app.get("/api/teams/{tid}/orphan-participants")
+    def get_team_orphan_participants(tid: int):
+        return db_ct.get_team_participants_not_in_sessions(tid)
+
     @app.post("/api/teams/{tid}/participants", status_code=201)
     def post_team_participant(tid: int, body: TeamParticipantAdd):
         if body.participant_id:
@@ -593,10 +610,38 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
         db_ct.add_participant_to_team(tid, p["id"])
         return p
 
+    @app.delete("/api/teams/{tid}")
+    def delete_team_route(tid: int, delete_orphan_participants: bool = False):
+        if delete_orphan_participants:
+            orphans = db_ct.get_team_participants_not_in_sessions(tid)
+            for p in orphans:
+                db_par.delete_participant(p["id"])
+        db_ct.delete_team(tid)
+        return {"ok": True}
+
     # Participants (global)
     @app.get("/api/participants")
     def get_all_participants():
         return db_par.list_participants()
+
+    @app.get("/api/participants/{pid}")
+    def get_participant_route(pid: int):
+        p = db_par.get_participant(pid)
+        if not p:
+            raise HTTPException(404)
+        return p
+
+    @app.patch("/api/participants/{pid}")
+    def patch_participant(pid: int, body: ParticipantUpdate):
+        p = db_par.update_participant(pid, **body.model_dump())
+        if not p:
+            raise HTTPException(404)
+        return p
+
+    @app.delete("/api/participants/{pid}")
+    def delete_participant_route(pid: int):
+        db_par.delete_participant(pid)
+        return {"ok": True}
 
     # Practices search + special
     @app.get("/api/practices/search")
@@ -810,44 +855,98 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
 
 # ── PDF rendering ─────────────────────────────────────────────────────────────
 
+def _add_minutes(hhmm: str, mins: int) -> str:
+    h, m = map(int, hhmm.split(":"))
+    t = h * 60 + m + mins
+    return f"{(t // 60) % 24:02d}:{t % 60:02d}"
+
+
 def _render_pdf_html(ctx: dict) -> str:
     participants = ctx.get("participants", [])
     practices = ctx.get("practices", [])
     total = ctx.get("total_duration", 0)
     facilitator = ctx.get("facilitator", {})
+    start_time = ctx.get("start_time")
+
+    status_labels = {"draft": "Brouillon", "confirmed": "Confirmé", "finished": "Terminé"}
+    status_label = status_labels.get(ctx.get("status", "draft"), ctx.get("status", "draft"))
 
     rows = ""
+    cursor = start_time
     for p in practices:
-        rows += f"<tr><td>{p['titre']}</td><td>{p['duration_minutes']} min</td></tr>"
+        if cursor:
+            slot_end = _add_minutes(cursor, p["duration_minutes"])
+            time_cell = f"<td class='tc'>{cursor}</td><td class='tc'>{slot_end}</td>"
+            cursor = slot_end
+        else:
+            time_cell = "<td class='tc'>—</td><td class='tc'>—</td>"
+        src = p.get("source", "rag")
+        badge_cls = "badge-sp" if src == "special" else "badge-rag"
+        badge_lbl = p.get("icone_code") or ("Spécial" if src == "special" else "RAG")
+        rows += (
+            f"<tr><td>{p['titre']} <span class='badge {badge_cls}'>{badge_lbl}</span></td>"
+            f"<td class='dur'>{p['duration_minutes']} min</td>{time_cell}</tr>\n"
+        )
+
+    def _p_role(p):
+        role = p.get("role")
+        return f" <span class='role'>— {role}</span>" if role else ""
 
     p_list = "".join(
-        f"<li>{p['first_name']} {p['last_name']}{' — ' + p['role'] if p.get('role') else ''}</li>"
+        f"<li>{p['first_name']} {p['last_name']}{_p_role(p)}</li>\n"
         for p in participants
     )
+
+    timing_html = ""
+    if start_time:
+        timing_html = (
+            f"<span>Début : <strong>{start_time}</strong></span>"
+            f"<span>Fin estimée : <strong>{_add_minutes(start_time, total)}</strong></span>"
+        )
 
     return f"""<!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8">
 <style>
-  body {{ font-family: sans-serif; margin: 40px; color: #222; }}
-  h1 {{ color: #2c7a4b; }} h2 {{ color: #2c7a4b; border-bottom: 1px solid #ddd; padding-bottom: 4px; }}
-  table {{ width: 100%; border-collapse: collapse; }}
-  th, td {{ padding: 8px 12px; border: 1px solid #ddd; text-align: left; }}
-  th {{ background: #f0f9f4; }}
-  .meta {{ color: #666; font-size: 0.9em; margin-bottom: 24px; }}
+*, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{ font-family: Arial, Helvetica, sans-serif; padding: 36px 44px; color: #01031B; background: #fff; font-size: 13px; line-height: 1.55; }}
+h1 {{ font-size: 22px; font-weight: 700; color: #01031B; margin-bottom: 3px; }}
+.pink {{ color: #D8346E; }}
+.meta-bar {{ display: flex; flex-wrap: wrap; gap: 6px 24px; font-size: 12px; color: #6b6b80; margin: 10px 0 22px; padding: 10px 16px; background: #f7f7fb; border-radius: 8px; border-left: 4px solid #D8346E; }}
+.meta-bar strong {{ color: #01031B; }}
+.objective {{ font-style: italic; color: #6b6b80; margin-bottom: 20px; padding: 8px 16px; border-left: 3px solid #f2aac9; font-size: 12px; }}
+h2 {{ color: #D8346E; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; margin: 24px 0 8px; border-bottom: 2px solid #f2aac9; padding-bottom: 5px; }}
+table {{ width: 100%; border-collapse: collapse; font-size: 12px; }}
+th {{ background: #fdf0f5; color: #D8346E; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 10px; border-bottom: 2px solid #f2aac9; text-align: left; }}
+th.tc {{ text-align: center; }}
+td {{ padding: 8px 10px; border-bottom: 1px solid #e2e2ee; vertical-align: middle; }}
+tr:nth-child(even) td {{ background: #fafafa; }}
+td.dur {{ text-align: center; color: #6b6b80; white-space: nowrap; }}
+td.tc  {{ text-align: center; color: #D8346E; font-weight: 700; white-space: nowrap; }}
+.badge {{ font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 6px; vertical-align: middle; display: inline-block; margin-left: 6px; }}
+.badge-rag {{ background: #fdf0f5; color: #D8346E; }}
+.badge-sp  {{ background: #f0fff4; color: #2c7a4b; }}
+ul {{ padding-left: 20px; margin: 0; }}
+li {{ padding: 3px 0; font-size: 12px; }}
+.role {{ color: #6b6b80; }}
+.footer {{ margin-top: 36px; padding-top: 10px; border-top: 1px solid #e2e2ee; font-size: 10px; color: #9ca3af; text-align: right; }}
 </style>
 </head><body>
-<h1>{ctx.get('title', 'Session')}</h1>
-<p class="meta">
-  Facilitateur : <strong>{facilitator.get('name', '')}</strong> &nbsp;|&nbsp;
-  Date : <strong>{ctx.get('date', '') or '—'}</strong> &nbsp;|&nbsp;
-  Statut : <strong>{ctx.get('status', 'draft')}</strong> &nbsp;|&nbsp;
-  Durée totale : <strong>{total} min</strong>
-</p>
-{"<p><em>" + ctx.get("objective", "") + "</em></p>" if ctx.get("objective") else ""}
+<h1><span class="pink">‹</span> {ctx.get('title', 'Session')} <span class="pink">›</span></h1>
+<div class="meta-bar">
+  <span>Facilitateur : <strong>{facilitator.get('name', '')}</strong></span>
+  <span>Date : <strong>{ctx.get('date') or '—'}</strong></span>
+  <span>Statut : <strong>{status_label}</strong></span>
+  <span>Durée : <strong>{total} min</strong></span>
+  {timing_html}
+</div>
+{"<p class='objective'>" + ctx.get('objective', '') + "</p>" if ctx.get('objective') else ""}
 {"<h2>Participants</h2><ul>" + p_list + "</ul>" if participants else ""}
 <h2>Déroulé</h2>
-<table><thead><tr><th>Pratique</th><th>Durée</th></tr></thead>
-<tbody>{rows}</tbody></table>
+<table>
+  <thead><tr><th>Pratique</th><th class="tc">Durée</th><th class="tc">Début</th><th class="tc">Fin</th></tr></thead>
+  <tbody>{rows}</tbody>
+</table>
+<p class="footer">Facilito — {ctx.get('date', '')}</p>
 </body></html>"""
 
 

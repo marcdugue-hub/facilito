@@ -168,6 +168,7 @@ textarea { resize: vertical; min-height: 70px; }
   padding: 16px 20px;
   margin-bottom: 20px;
   box-shadow: var(--shadow);
+  overflow: hidden;
 }
 .session-meta .meta-row { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 8px; }
 .session-meta .meta-item { font-size: .85rem; }
@@ -622,8 +623,126 @@ select.status-select { font-size: .8rem; padding: 3px 8px; }
   50%       { box-shadow: 0 0 0 8px rgba(216,52,110,0); }
 }
 
+.p-time {
+  display: block;
+  font-size: .75rem;
+  color: var(--pink);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+/* ── Mascotte illustrations ─────────────────────────────────────── */
+.mascotte-strip {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.mascotte-strip-text {
+  flex: 1;
+}
+.mascotte-strip-text strong {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--dark);
+  margin-bottom: 6px;
+}
+.mascotte-strip-text p {
+  font-size: .88rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.mascotte-strip img {
+  width: 220px;
+  flex-shrink: 0;
+  display: block;
+}
+.mascotte-inline {
+  float: right;
+  width: 170px;
+  margin: 0 0 8px 16px;
+}
+@media (max-width: 768px) {
+  .mascotte-strip { display: none; }
+  .mascotte-inline { width: 120px; }
+}
+
+/* ── Breadcrumb cliquable ───────────────────────────────────────── */
+.bc-link {
+  cursor: pointer;
+  opacity: .75;
+  transition: opacity .15s, color .15s;
+}
+.bc-link:hover { opacity: 1; color: var(--pink-m); }
+.bc-sep { opacity: .4; }
+
+/* ── Back row ────────────────────────────────────────────────────── */
+.back-row { margin-bottom: 12px; }
+.back-btn { font-size: .8rem !important; }
+
+/* ── Inline add form (within client cards) ──────────────────────── */
+.inline-add-form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.inline-add-form input {
+  flex: 1;
+  min-width: 100px;
+  padding: 5px 8px;
+  font-size: .82rem;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+}
+
+/* ── Team chips (shown under a client) ──────────────────────────── */
+.team-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0 4px;
+}
+.team-chip {
+  font-size: .73rem;
+  background: var(--pink-l);
+  color: var(--pink);
+  border: 1px solid var(--pink-m);
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Participant management rows (global list) ──────────────────── */
+.participant-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.participant-row .p-name  { flex: 1; font-weight: 600; min-width: 160px; }
+.participant-row .p-role  { font-size: .8rem; color: var(--muted); flex: 1; min-width: 100px; }
+.participant-row .p-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+
 /* Print (PDF) */
 @media print {
   #agent-panel, #topbar, #agent-bubble { display: none; }
   #body { grid-template-columns: 1fr; }
+  .mascotte-strip, .mascotte-inline { display: none; }
 }

@@ -62,3 +62,31 @@ def remove_participant_from_session(session_id: int, participant_id: int) -> boo
         )
         conn.commit()
     return True
+
+
+def update_participant(participant_id: int, **kwargs) -> dict | None:
+    allowed = {"first_name", "last_name", "email", "role"}
+    fields = {k: v for k, v in kwargs.items() if k in allowed}
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM participants WHERE id = ?", (participant_id,)).fetchone()
+        if not row:
+            return None
+        if not fields:
+            return dict(row)
+        set_clause = ", ".join(f"{k} = ?" for k in fields)
+        conn.execute(
+            f"UPDATE participants SET {set_clause} WHERE id = ?",
+            list(fields.values()) + [participant_id],
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM participants WHERE id = ?", (participant_id,)).fetchone()
+    return dict(row)
+
+
+def delete_participant(participant_id: int) -> bool:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM team_participants WHERE participant_id = ?", (participant_id,))
+        conn.execute("DELETE FROM session_participants WHERE participant_id = ?", (participant_id,))
+        conn.execute("DELETE FROM participants WHERE id = ?", (participant_id,))
+        conn.commit()
+    return True

@@ -14,7 +14,8 @@ const App = (() => {
     mascots: [],
     currentMascot: null,
     mobileAgentOpen: false,
-    chatHistory: [],      // mirrored locally for display
+    chatHistory: [],
+    allParticipants: [],
   };
 
   // ── API helpers ──────────────────────────────────────────────────────────
@@ -36,8 +37,23 @@ const App = (() => {
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
     document.getElementById("screen-" + id).classList.add("active");
   }
-  function breadcrumb(text) {
-    document.getElementById("breadcrumb").textContent = text;
+
+  const _bcParts = [];
+  function breadcrumb(parts) {
+    const el = document.getElementById("breadcrumb");
+    _bcParts.length = 0;
+    if (!parts || !parts.length) { el.innerHTML = ""; return; }
+    parts.forEach(p => _bcParts.push(p));
+    el.innerHTML = parts.map((p, i) => {
+      const sep = i > 0 ? '<span class="bc-sep"> › </span>' : '';
+      if (p.action) {
+        return `${sep}<span class="bc-link" data-idx="${i}">${esc(p.label)}</span>`;
+      }
+      return `${sep}<span>${esc(p.label)}</span>`;
+    }).join("");
+    el.querySelectorAll(".bc-link[data-idx]").forEach(node => {
+      node.onclick = () => _bcParts[parseInt(node.dataset.idx)].action();
+    });
   }
 
   // ── Init ─────────────────────────────────────────────────────────────────
@@ -92,13 +108,22 @@ const App = (() => {
     }
     el.innerHTML = list.map(f => `
       <div class="card" onclick="App.openFacilitator(${f.id}, '${esc(f.name)}')">
-        <h3>${esc(f.name)}</h3>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+          <h3 style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</h3>
+          <button class="btn-icon" title="Supprimer" onclick="event.stopPropagation();App.deleteFacilitator(${f.id},'${esc(f.name)}')" style="flex-shrink:0;color:var(--muted);font-size:.95rem;padding:0 2px">✕</button>
+        </div>
         <p class="meta">Cliquer pour voir les sessions</p>
       </div>`).join("");
   }
 
   function showNewFacilitator() { document.getElementById("form-new-facilitator").style.display = ""; }
   function hideNewFacilitator() { document.getElementById("form-new-facilitator").style.display = "none"; }
+
+  async function deleteFacilitator(id, name) {
+    if (!confirm(`Supprimer le facilitateur « ${name} » et toutes ses sessions ?`)) return;
+    await del(`/api/facilitators/${id}`);
+    await loadFacilitators();
+  }
 
   async function createFacilitator() {
     const name = document.getElementById("input-facilitator-name").value.trim();
@@ -111,7 +136,7 @@ const App = (() => {
 
   async function openFacilitator(id, name) {
     state.facilitator = { id, name };
-    breadcrumb(`${name}`);
+    breadcrumb([{ label: name, action: showFacilitators }]);
     document.getElementById("sessions-title").textContent = `Sessions — ${name}`;
     show("sessions");
     await loadSessions();
@@ -120,8 +145,16 @@ const App = (() => {
   // ── Facilitators nav ─────────────────────────────────────────────────────
   async function showFacilitators() {
     show("facilitators");
-    breadcrumb("");
+    breadcrumb([]);
     await loadFacilitators();
+  }
+
+  async function backToSessions() {
+    if (state.facilitator) {
+      await openFacilitator(state.facilitator.id, state.facilitator.name);
+    } else {
+      await showFacilitators();
+    }
   }
 
   // ── Sessions ──────────────────────────────────────────────────────────────
@@ -147,8 +180,9 @@ const App = (() => {
     const title = document.getElementById("input-session-title").value.trim();
     if (!title) return;
     const date = document.getElementById("input-session-date").value || null;
+    const start_time = document.getElementById("input-session-start-time").value || null;
     const objective = document.getElementById("input-session-objective").value.trim() || null;
-    const s = await post("/api/sessions", { facilitator_id: state.facilitator.id, title, date, objective });
+    const s = await post("/api/sessions", { facilitator_id: state.facilitator.id, title, date, start_time, objective });
     hideNewSession();
     await openSession(s.id);
   }
@@ -158,7 +192,13 @@ const App = (() => {
     state.session = ctx;
     state.practices = ctx.practices || [];
     state.participants = ctx.participants || [];
-    breadcrumb(`${state.facilitator ? state.facilitator.name + " › " : ""}${ctx.title}`);
+    const bcParts = [];
+    if (state.facilitator) {
+      const fac = state.facilitator;
+      bcParts.push({ label: fac.name, action: () => openFacilitator(fac.id, fac.name) });
+    }
+    bcParts.push({ label: ctx.title });
+    breadcrumb(bcParts);
     show("session");
     renderSessionMeta(ctx);
     renderParticipants();
@@ -174,6 +214,7 @@ const App = (() => {
     const row = document.getElementById("session-meta-row");
     row.innerHTML = `
       <div class="meta-item"><strong>Date</strong><span class="editable" onclick="App.editSessionField('date')">${ctx.date || "—"}</span></div>
+      <div class="meta-item"><strong>Heure de début</strong><span class="editable" onclick="App.editSessionField('start_time')">${ctx.start_time || "—"}</span></div>
       <div class="meta-item"><strong>Objectif</strong><span class="editable" onclick="App.editSessionField('objective')">${esc(ctx.objective || "—")}</span></div>
       <div class="meta-item"><strong>Facilitateur</strong>${esc(ctx.facilitator ? ctx.facilitator.name : "—")}</div>`;
   }
@@ -185,7 +226,7 @@ const App = (() => {
   }
 
   async function editSessionField(field) {
-    const labels = { title: "Titre", date: "Date (YYYY-MM-DD)", objective: "Objectif" };
+    const labels = { title: "Titre", date: "Date (YYYY-MM-DD)", start_time: "Heure de début (HH:MM)", objective: "Objectif" };
     const current = state.session[field] || "";
     const val = prompt(`${labels[field]} :`, current);
     if (val === null) return;
@@ -249,16 +290,34 @@ const App = (() => {
   }
 
   // ── Practices ─────────────────────────────────────────────────────────────
+  function _addMinutes(hhmm, mins) {
+    const [h, m] = hhmm.split(":").map(Number);
+    const t = h * 60 + m + mins;
+    return `${String(Math.floor(t / 60) % 24).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+  }
+
   function renderPractices() {
     const list = state.practices;
     const el = document.getElementById("practice-list");
     const total = list.reduce((s, p) => s + p.duration_minutes, 0);
-    document.getElementById("total-duration").textContent = `Durée totale : ${total} min`;
+    const startTime = state.session && state.session.start_time;
+    const endTime = startTime ? _addMinutes(startTime, total) : null;
+    document.getElementById("total-duration").textContent =
+      `Durée totale : ${total} min` + (endTime ? `  —  Fin : ${endTime}` : "");
     if (!list.length) { el.innerHTML = `<li style="color:var(--muted);font-size:.85rem;padding:8px">Aucune pratique. Demandez à l'agent d'en suggérer !</li>`; return; }
-    el.innerHTML = list.map((p, i) => `
+
+    let cursor = startTime || null;
+    el.innerHTML = list.map((p, i) => {
+      const slotStart = cursor;
+      const slotEnd = cursor ? _addMinutes(cursor, p.duration_minutes) : null;
+      if (cursor) cursor = slotEnd;
+      const timeTag = slotStart
+        ? `<span class="p-time">${slotStart} – ${slotEnd}</span>`
+        : "";
+      return `
       <li class="practice-item" data-id="${p.id}">
         <span class="p-pos">${i + 1}</span>
-        <span class="p-title">${esc(p.titre)}</span>
+        <span class="p-title">${esc(p.titre)}${timeTag}</span>
         <span class="p-source">${p.source === "special" ? "Spécial" : p.icone_code || "RAG"}</span>
         <span class="p-dur">
           <input type="number" min="1" max="480" value="${p.duration_minutes}"
@@ -270,7 +329,8 @@ const App = (() => {
           ${i < list.length - 1 ? `<button class="btn-icon" onclick="App.movePractice(${p.id},'down')" title="Descendre">▼</button>` : '<button class="btn-icon" disabled style="opacity:.3">▼</button>'}
           <button class="btn-icon" onclick="App.removePractice(${p.id})" title="Supprimer" style="color:var(--red)">✕</button>
         </span>
-      </li>`).join("");
+      </li>`;
+    }).join("");
   }
 
   async function updateDuration(rowId, val) {
@@ -278,8 +338,7 @@ const App = (() => {
     if (!dur || dur < 1) return;
     await patch(`/api/sessions/${state.session.id}/practices/${rowId}`, { duration_minutes: dur });
     state.practices = state.practices.map(p => p.id === rowId ? { ...p, duration_minutes: dur } : p);
-    const total = state.practices.reduce((s, p) => s + p.duration_minutes, 0);
-    document.getElementById("total-duration").textContent = `Durée totale : ${total} min`;
+    renderPractices();
   }
 
   async function movePractice(rowId, direction) {
@@ -371,23 +430,74 @@ const App = (() => {
   // ── Clients & Teams ───────────────────────────────────────────────────────
   async function showClients() {
     show("clients");
-    breadcrumb("Clients & Équipes");
+    breadcrumb([{ label: "Clients & Équipes" }]);
     await loadClients();
     await loadTeamsPage();
   }
 
   async function loadClients() {
-    const list = await get("/api/clients");
+    const [list, allTeams] = await Promise.all([get("/api/clients"), get("/api/teams")]);
     state.clients = list;
-    const el = document.getElementById("client-list");
-    el.innerHTML = list.length
-      ? list.map(c => `<div class="card"><h3>${esc(c.name)}</h3></div>`).join("")
-      : `<div class="empty-state"><p>Aucun client.</p></div>`;
 
-    // Also refresh team-client select
+    const teamsByClient = {};
+    allTeams.forEach(t => {
+      if (t.client_id) {
+        if (!teamsByClient[t.client_id]) teamsByClient[t.client_id] = [];
+        teamsByClient[t.client_id].push(t);
+      }
+    });
+
+    const el = document.getElementById("client-list");
+    if (!list.length) {
+      el.innerHTML = `<div class="empty-state"><p>Aucun client.</p></div>`;
+    } else {
+      el.innerHTML = list.map(c => {
+        const clientTeams = teamsByClient[c.id] || [];
+        const teamsHtml = clientTeams.length
+          ? `<div class="team-chips">${clientTeams.map(t => `<span class="team-chip">${esc(t.name)}</span>`).join("")}</div>`
+          : `<p class="meta" style="margin:6px 0 4px;font-size:.78rem">Aucune équipe</p>`;
+        return `<div class="card" style="cursor:default">
+          <h3>${esc(c.name)}</h3>
+          ${teamsHtml}
+          <div id="atf-${c.id}" style="display:none" class="inline-add-form">
+            <input id="atn-${c.id}" placeholder="Nom de l'équipe"/>
+            <button class="btn btn-primary btn-sm" onclick="App.createTeamForClient(${c.id})">Créer</button>
+            <button class="btn-icon" onclick="App.hideAddTeamToClient(${c.id})">✕</button>
+          </div>
+          <button class="btn btn-outline btn-sm" id="atb-${c.id}" style="margin-top:8px" onclick="App.showAddTeamToClient(${c.id})">+ Équipe</button>
+        </div>`;
+      }).join("");
+    }
+
     const sel = document.getElementById("select-team-client");
     sel.innerHTML = `<option value="">— Client (optionnel) —</option>` +
       list.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
+  }
+
+  function showAddTeamToClient(cid) {
+    const form = document.getElementById(`atf-${cid}`);
+    const btn  = document.getElementById(`atb-${cid}`);
+    if (form) form.style.display = "flex";
+    if (btn)  btn.style.display  = "none";
+    const inp = document.getElementById(`atn-${cid}`);
+    if (inp) setTimeout(() => inp.focus(), 50);
+  }
+
+  function hideAddTeamToClient(cid) {
+    const form = document.getElementById(`atf-${cid}`);
+    const btn  = document.getElementById(`atb-${cid}`);
+    if (form) form.style.display = "none";
+    if (btn)  btn.style.display  = "";
+  }
+
+  async function createTeamForClient(cid) {
+    const input = document.getElementById(`atn-${cid}`);
+    const name = input ? input.value.trim() : "";
+    if (!name) return;
+    await post("/api/teams", { name, client_id: cid });
+    if (input) input.value = "";
+    hideAddTeamToClient(cid);
+    await Promise.all([loadClients(), loadTeamsPage()]);
   }
 
   async function createClient() {
@@ -401,10 +511,36 @@ const App = (() => {
   async function loadTeamsPage() {
     const list = await get("/api/teams");
     state.teams = list;
+    const clientMap = {};
+    (state.clients || []).forEach(c => { clientMap[c.id] = c.name; });
+
     const el = document.getElementById("team-list");
-    el.innerHTML = list.length
-      ? list.map(t => `<div class="card"><h3>${esc(t.name)}</h3><p class="meta">${t.client_id ? "Client #" + t.client_id : "Sans client"}</p></div>`).join("")
-      : `<div class="empty-state"><p>Aucune équipe.</p></div>`;
+    if (!list.length) {
+      el.innerHTML = `<div class="empty-state"><p>Aucune équipe.</p></div>`;
+      return;
+    }
+    el.innerHTML = list.map(t => `
+      <div class="card">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+          <h3 style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</h3>
+          <button class="btn-icon" onclick="event.stopPropagation();App.deleteTeam(${t.id},'${esc(t.name)}')" title="Supprimer" style="flex-shrink:0;color:var(--muted)">✕</button>
+        </div>
+        <p class="meta">${t.client_id ? (clientMap[t.client_id] || 'Client #' + t.client_id) : 'Sans client'}</p>
+      </div>`).join("");
+  }
+
+  async function deleteTeam(tid, name) {
+    if (!confirm(`Supprimer l'équipe « ${name} » ?`)) return;
+    const orphans = await get(`/api/teams/${tid}/orphan-participants`);
+    let deleteOrphans = false;
+    if (orphans.length > 0) {
+      const names = orphans.map(p => `${p.first_name} ${p.last_name}`).join(", ");
+      deleteOrphans = confirm(
+        `${orphans.length} participant(s) de cette équipe ne sont rattachés à aucune session :\n${names}\n\nVoulez-vous aussi les supprimer ?`
+      );
+    }
+    await del(`/api/teams/${tid}?delete_orphan_participants=${deleteOrphans}`);
+    await Promise.all([loadTeamsPage(), loadClients()]);
   }
 
   async function createTeam() {
@@ -413,14 +549,65 @@ const App = (() => {
     const cid = parseInt(document.getElementById("select-team-client").value) || null;
     await post("/api/teams", { name, client_id: cid });
     document.getElementById("input-team-name").value = "";
-    await loadTeamsPage();
+    await Promise.all([loadTeamsPage(), loadClients()]);
   }
 
   function showTab(tab) {
     document.getElementById("tab-clients").style.display = tab === "clients" ? "" : "none";
     document.getElementById("tab-teams").style.display   = tab === "teams"   ? "" : "none";
+    document.getElementById("tab-participants").style.display = tab === "participants" ? "" : "none";
     document.querySelectorAll(".tab-btn").forEach((b, i) =>
-      b.classList.toggle("active", (i === 0 && tab === "clients") || (i === 1 && tab === "teams")));
+      b.classList.toggle("active",
+        (i === 0 && tab === "clients") ||
+        (i === 1 && tab === "teams") ||
+        (i === 2 && tab === "participants")));
+    if (tab === "participants") loadAllParticipants();
+  }
+
+  // ── Participants (global) ──────────────────────────────────────────────────
+  async function loadAllParticipants() {
+    const list = await get("/api/participants");
+    state.allParticipants = list;
+    const el = document.getElementById("all-participants-list");
+    if (!list.length) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">👥</div><p>Aucun participant enregistré.</p></div>`;
+      return;
+    }
+    el.innerHTML = list.map(p => `
+      <div class="participant-row">
+        <span class="p-name">${esc(p.first_name)} ${esc(p.last_name)}</span>
+        <span class="p-role">${esc(p.role || p.email || "")}</span>
+        <div class="p-actions">
+          <button class="btn btn-outline btn-sm" onclick="App.editParticipantGlobal(${p.id})">Modifier</button>
+          <button class="btn-icon" onclick="App.deleteParticipantGlobal(${p.id})" title="Supprimer" style="color:var(--red)">✕</button>
+        </div>
+      </div>`).join("");
+  }
+
+  async function editParticipantGlobal(pid) {
+    const p = (state.allParticipants || []).find(x => x.id === pid);
+    if (!p) return;
+    const fn = prompt("Prénom :", p.first_name || "");
+    if (fn === null) return;
+    const ln = prompt("Nom :", p.last_name || "");
+    if (ln === null) return;
+    const email = prompt("Email :", p.email || "");
+    if (email === null) return;
+    const role = prompt("Poste :", p.role || "");
+    if (role === null) return;
+    await patch(`/api/participants/${pid}`, {
+      first_name: fn.trim() || p.first_name,
+      last_name:  ln.trim() || p.last_name,
+      email: email.trim() || null,
+      role:  role.trim()  || null,
+    });
+    await loadAllParticipants();
+  }
+
+  async function deleteParticipantGlobal(pid) {
+    if (!confirm("Supprimer ce participant définitivement ?")) return;
+    await del(`/api/participants/${pid}`);
+    await loadAllParticipants();
   }
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
@@ -428,7 +615,8 @@ const App = (() => {
 
   async function showDashboard() {
     show("dashboard");
-    breadcrumb("Tableau de bord");
+    breadcrumb([{ label: "Tableau de bord" }]);
+    _populateVoiceSelect();
     await refreshDashboard();
   }
 
@@ -765,10 +953,7 @@ const App = (() => {
   }
 
   function toggleVoiceSettings() {
-    _voice.settingsOpen = !_voice.settingsOpen;
-    const p = document.getElementById("voice-settings-panel");
-    if (p) p.style.display = _voice.settingsOpen ? "flex" : "none";
-    if (_voice.settingsOpen) _populateVoiceSelect();
+    // Voice settings moved to the dashboard — no-op kept for compatibility
   }
 
   function changeVoice(name) {
@@ -797,17 +982,19 @@ const App = (() => {
   document.addEventListener("DOMContentLoaded", init);
 
   return {
-    showNewFacilitator, hideNewFacilitator, createFacilitator,
-    showFacilitators, openFacilitator,
+    showNewFacilitator, hideNewFacilitator, createFacilitator, deleteFacilitator,
+    showFacilitators, openFacilitator, backToSessions,
     showNewSession, hideNewSession, createSession, openSession,
     updateSessionStatus, editSessionField,
     addParticipant, removeParticipant, addTeam,
     updateDuration, movePractice, removePractice,
     showSpecialPracticeMenu, hideSpecialPracticeMenu, addSpecialPractice,
     showClients, createClient, createTeam, showTab,
+    showAddTeamToClient, hideAddTeamToClient, createTeamForClient, deleteTeam,
+    loadAllParticipants, editParticipantGlobal, deleteParticipantGlobal,
     showDashboard, refreshDashboard, saveCostConfig, toggleLogFilter,
     sendChat, sendChatMobile, toggleMobileAgent,
-    toggleVoiceInput, toggleVoiceSettings, changeVoice,
+    toggleVoiceInput, changeVoice,
     exportPDF,
   };
 })();
