@@ -21,6 +21,18 @@ python -m Agent.Main.main --deepseek   # uses DeepSeek LLM
 
 Keys go in [Agent/.env](Agent/.env): `OPENAI_API_KEY` and `DEEPSEEK_API_KEY`. Embeddings always use OpenAI `text-embedding-3-small` regardless of LLM mode.
 
+## Unit Tests — MANDATORY
+
+**Claude Code must run the unit test suite after every code change, before reporting a task as complete.** Tests must pass before any Docker build or commit.
+
+```bash
+python -m pytest test/unitaires/ -v
+```
+
+118 tests across 9 files. LLM is mocked — no API calls are made. Each test gets an isolated in-memory SQLite database. If any test fails after a change, fix the root cause before proceeding.
+
+**Never modify, disable, or delete any test without explicit user approval.** If a code change causes a test to fail, fix the production code — not the test.
+
 ## Architecture
 
 ```

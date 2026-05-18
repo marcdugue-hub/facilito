@@ -90,6 +90,31 @@ python -m Agent.Main.main --deepseek  # DeepSeek
 
 ---
 
+## Tests unitaires
+
+### Prérequis
+
+```bash
+python -m pip install -r requirements-test.txt
+```
+
+### Lancer tous les tests
+
+```bash
+python -m pytest test/unitaires/
+```
+
+### Avec détail et couverture
+
+```bash
+python -m pytest test/unitaires/ -v
+python -m pytest test/unitaires/ -v --cov=Agent --cov-report=term-missing
+```
+
+118 tests couvrent : outils Database (facilitateurs, sessions, participants, équipes, clients, analytics), mémoire agent, RAG (ChromaDB + fallback), providers LLM (OpenAI / DeepSeek) et la boucle agent complète. Le LLM est mocké avec des réponses statiques — aucun appel API réel n'est effectué.
+
+---
+
 ## Architecture
 
 | Composant | Description |
