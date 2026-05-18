@@ -150,6 +150,88 @@ python -m pytest test/unitaires/ -v --cov=Agent --cov-report=term-missing
 
 ---
 
+## Évaluation LLM-as-Judge
+
+Le framework d'évaluation qualitative mesure la qualité des réponses de l'agent sur trois dimensions : **Pertinence** (pratiques adaptées au besoin), **Fidélité** (informations exactes, sans hallucination) et **Cohérence** (réponse structurée et gestion des cas limites). Chaque dimension est activable/désactivable question par question via des booléens dans le fichier de configuration.
+
+### Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `test/llm_judge/questions.json` | 20 questions réparties en 9 catégories avec comportement attendu et booléens d'évaluation |
+| `test/llm_judge/run_judge.py` | Script principal — interroge l'agent puis le juge, génère le rapport |
+| `test/llm_judge/reports/` | Rapports Markdown horodatés générés par le script |
+
+### Prérequis
+
+Le serveur Facilito doit être démarré avant de lancer l'évaluation :
+
+```bash
+python -m Agent.Main.main --openai
+```
+
+### Lancer l'évaluation complète
+
+```bash
+# Avec OpenAI comme juge (défaut)
+python test/llm_judge/run_judge.py --openai
+
+# Avec DeepSeek comme juge
+python test/llm_judge/run_judge.py --deepseek
+
+# Serveur sur un port non standard
+python test/llm_judge/run_judge.py --base-url http://localhost:8001
+```
+
+### Options avancées
+
+```bash
+# Évaluer seulement certaines questions (par ID)
+python test/llm_judge/run_judge.py --ids 1,4,10,14
+
+# Spécifier un fichier de questions alternatif
+python test/llm_judge/run_judge.py --questions test/llm_judge/my_questions.json
+
+# Écrire le rapport à un emplacement précis
+python test/llm_judge/run_judge.py --output rapports/eval_v2.md
+```
+
+### Structure du fichier questions.json
+
+```json
+{
+  "id": 1,
+  "categorie": "Factuelle simple",
+  "question": "...",
+  "comportement_attendu": "...",
+  "eval_pertinence": true,
+  "eval_fidelite": true,
+  "eval_coherence": false
+}
+```
+
+Les trois booléens (`eval_pertinence`, `eval_fidelite`, `eval_coherence`) activent ou désactivent chaque dimension d'évaluation pour la question. Une dimension désactivée apparaît comme « non évalué » dans le rapport et n'entre pas dans le calcul de la moyenne.
+
+### Catégories de questions
+
+| Catégorie | Description | Nb |
+|---|---|:-:|
+| Factuelle simple | Vérification de données brutes issues des fiches (durée, participants, niveau) | 3 |
+| Complexe / comparative | Comparaisons et recommandations argumentées entre plusieurs pratiques | 2 |
+| Ambiguë | Questions sans contexte suffisant — l'agent doit demander des précisions | 2 |
+| Hors sujet / absurde | Questions hors domaine — l'agent doit décliner poliment | 2 |
+| Piège (fidélité) | Questions dont la réponse intuitive est fausse selon le corpus | 2 |
+| Contrainte de format | Respect d'une consigne de format (tableau, une phrase, n éléments) | 2 |
+| Multi-tools | Enchaînements d'outils (recherche RAG + ajout session) | 2 |
+| Bord de domaine | Cas à la limite du corpus (distanciel, gestion des conflits) | 2 |
+| Recommandation guidée | Conception d'un programme complet avec contraintes multiples | 3 |
+
+### Format du rapport généré
+
+Le rapport Markdown commence par un tableau de synthèse coloré (🔴 < 3.0 · 🟡 3.0–3.9 · 🟢 ≥ 4.0), suivi des résultats détaillés par question : réponse de l'agent, scores par dimension et justification du juge.
+
+---
+
 ## Architecture
 
 | Composant | Description |

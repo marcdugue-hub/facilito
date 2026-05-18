@@ -1,0 +1,182 @@
+[
+  {
+    "id": 1,
+    "categorie": "Factuelle simple",
+    "question": "Quelle est la durée recommandée pour le Brainstorming et pour combien de participants est-il conçu ?",
+    "comportement_attendu": "L'agent doit indiquer que le Brainstorming dure 60-90 minutes, est conçu pour 5 à 30 participants, et est de niveau intermédiaire. Une réponse vague type 'ça dépend' ou des chiffres inexacts (ex: '2h', '50 participants') est insuffisante.",
+    "eval_pertinence": false,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 2,
+    "categorie": "Factuelle simple",
+    "question": "Qu'est-ce que le ROTI Agile et à quelle phase d'atelier s'utilise-t-il ?",
+    "comportement_attendu": "L'agent doit expliquer que le ROTI (Return On Time Invested) est une pratique rapide (5-10 min) de bilan/clôture où les participants notent la valeur de la session sur une échelle de 1 à 5. Il appartient à la catégorie S'améliorer (BIL) et s'utilise en phase de fermeture.",
+    "eval_pertinence": false,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 3,
+    "categorie": "Factuelle simple",
+    "question": "Quelles pratiques de la catégorie 'Briser la glace' ont une durée inférieure ou égale à 5 minutes ?",
+    "comportement_attendu": "L'agent doit identifier les pratiques ICE de courte durée (≤5 min) en cherchant dans le RAG. Les pratiques 'NON MAIS, OUI ET…' (5 min) et 'PRISONNIER, ACHETEUR, VACANCIER, EXPLORATEUR' (5 min) sont les réponses attendues. Une liste incomplète ou des pratiques de mauvaise catégorie est insuffisante.",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 4,
+    "categorie": "Complexe / comparative",
+    "question": "Pour un groupe de 20 personnes timides qui ont du mal à s'exprimer oralement, quelle est la meilleure option entre le Brainstorming classique et le Brainwriting ? Explique les différences clés.",
+    "comportement_attendu": "L'agent doit recommander le Brainwriting pour un groupe timide car il se pratique par écrit, favorise l'expression des profils introvertis, et évite que les personnalités fortes dominent. Le Brainstorming, bien qu'idéal pour 5-30 personnes, est oral et peut inhiber les participants timides. La réponse doit mentionner la dynamique de groupe et pas seulement les chiffres.",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 5,
+    "categorie": "Complexe / comparative",
+    "question": "Je dois choisir une pratique de rétrospective pour clôturer un sprint agile avec 8 développeurs. Compare l'Étoile de Mer, le Speed Boat et le ROTI Agile.",
+    "comportement_attendu": "L'agent doit comparer les 3 pratiques BIL en précisant pour chacune : durée (ROTI 5-10 min, Speed Boat 60-90 min, Étoile de Mer 30-60 min), profondeur d'analyse, et adéquation au contexte. Il doit formuler une recommandation argumentée selon le temps disponible et l'objectif (bilan rapide vs rétro approfondie).",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 6,
+    "categorie": "Ambiguë",
+    "question": "J'ai une réunion importante demain, tu peux m'aider ?",
+    "comportement_attendu": "L'agent doit demander des précisions avant de proposer quoi que ce soit : quel est l'objectif de la réunion, combien de participants, quelle durée, quel type d'atelier (idéation, décision, bilan…). Il ne doit PAS proposer des pratiques au hasard sans contexte. La qualité de la reformulation des questions de clarification est évaluée.",
+    "eval_pertinence": false,
+    "eval_fidelite": false,
+    "eval_coherence": true
+  },
+  {
+    "id": 7,
+    "categorie": "Ambiguë",
+    "question": "Donne-moi quelque chose de dynamique pour mon équipe.",
+    "comportement_attendu": "L'agent doit identifier l'ambiguïté et poser des questions : combien de personnes, quelle phase (ouverture, idéation, clôture ?), durée disponible, niveau des participants, objectif de la session. Il ne doit pas deviner et proposer des pratiques sans clarification préalable.",
+    "eval_pertinence": false,
+    "eval_fidelite": false,
+    "eval_coherence": true
+  },
+  {
+    "id": 8,
+    "categorie": "Hors sujet / absurde",
+    "question": "Explique-moi comment faire une tarte aux pommes.",
+    "comportement_attendu": "L'agent doit poliment décliner et expliquer qu'il est spécialisé dans la facilitation d'ateliers collaboratifs. Il ne doit PAS donner une recette, ni faire de lien forcé avec les pratiques de facilitation. La réponse doit être courte, claire et inviter à reformuler une question dans son domaine.",
+    "eval_pertinence": false,
+    "eval_fidelite": false,
+    "eval_coherence": true
+  },
+  {
+    "id": 9,
+    "categorie": "Hors sujet / absurde",
+    "question": "Quel est le meilleur langage de programmation pour une startup tech ?",
+    "comportement_attendu": "L'agent doit reconnaître que la question est hors de son domaine de compétence (facilitation d'ateliers) et le signaler clairement. Il ne doit pas donner de conseils techniques sur les langages de programmation. Une réponse qui tente de faire un lien artificiel avec la facilitation est pénalisée.",
+    "eval_pertinence": false,
+    "eval_fidelite": false,
+    "eval_coherence": true
+  },
+  {
+    "id": 10,
+    "categorie": "Piège (fidélité)",
+    "question": "La Matrice DIXIT est-elle adaptée pour un groupe de 3 personnes ?",
+    "comportement_attendu": "PIÈGE : La fiche indique un minimum de 10 participants. L'agent doit répondre NON et préciser que la Matrice DIXIT est conçue pour 10 à 50 participants. Il doit idéalement suggérer des pratiques alternatives adaptées à 3 personnes. Une réponse qui dit 'oui' ou qui ne mentionne pas la contrainte de 10 participants minimum est incorrecte.",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 11,
+    "categorie": "Piège (fidélité)",
+    "question": "Le Brainstorming est-il recommandé pour des facilitateurs débutants ?",
+    "comportement_attendu": "PIÈGE : La fiche du Brainstorming indique une difficulté 'Intermédiaire'. L'agent doit signaler que le Brainstorming est de niveau intermédiaire et non débutant, et suggérer des pratiques de niveau 'Facile' pour les débutants. Une réponse qui dit 'oui, c'est facile' sans nuance est incorrecte.",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 12,
+    "categorie": "Contrainte de format",
+    "question": "Génère un tableau Markdown avec exactement 5 pratiques pour générer des idées, avec les colonnes : Pratique | Durée | Participants | Niveau.",
+    "comportement_attendu": "L'agent doit produire un tableau Markdown correctement formaté (en-tête + séparateur + 5 lignes) avec des données fidèles aux fiches pratiques de la catégorie 'Générer des idées'. Chaque ligne doit avoir les 4 colonnes renseignées. Un tableau avec des données inexactes ou mal formaté est pénalisé.",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 13,
+    "categorie": "Contrainte de format",
+    "question": "Résume en exactement une phrase par pratique les 3 meilleures activités de rétrospective pour clôturer un sprint agile.",
+    "comportement_attendu": "L'agent doit respecter scrupuleusement la contrainte : 3 pratiques, une seule phrase par pratique (pas de bullet-points, pas de paragraphes). Les pratiques choisies doivent appartenir à la catégorie S'améliorer (BIL) et être adaptées à un contexte agile. Le non-respect du format (plus d'une phrase, listes imbriquées) est une faute de cohérence.",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 14,
+    "categorie": "Multi-tools",
+    "question": "Ajoute les 2 meilleures pratiques pour briser la glace à ma session, en commençant par la plus courte en durée.",
+    "comportement_attendu": "L'agent doit enchaîner : recherche RAG (catégorie Briser la glace), sélection des 2 pratiques les plus pertinentes, ajout à la session dans l'ordre croissant de durée (la plus courte en premier). La séquence d'outils appelés doit être cohérente (search_practices → add_practice × 2). L'ordre de durée doit être respecté.",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 15,
+    "categorie": "Multi-tools",
+    "question": "Cherche une pratique de priorisation adaptée à exactement 10 participants et si tu en trouves une de correspondante, ajoute-la à ma session.",
+    "comportement_attendu": "L'agent doit chercher dans le RAG (priorisation / DEC), filtrer les pratiques dont la plage de participants inclut 10, et conditionner l'ajout à la session. Il doit être transparent sur sa décision (trouvé / pas trouvé, pourquoi). La logique conditionnelle doit être explicite dans la réponse.",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 16,
+    "categorie": "Bord de domaine",
+    "question": "Existe-t-il des pratiques dans Facilito spécifiquement dédiées à la gestion des conflits entre participants pendant un atelier ?",
+    "comportement_attendu": "Le corpus ne contient pas de pratique dédiée à la gestion des conflits. L'agent doit honnêtement signaler cette limite et ne pas halluciner de pratique inexistante. Il peut mentionner les points de vigilance présents dans certaines fiches (ex: cadre de bienveillance dans DIXIT) sans les présenter comme des pratiques dédiées.",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 17,
+    "categorie": "Bord de domaine",
+    "question": "Quelles pratiques me recommandes-tu pour un atelier en 100% distanciel (visioconférence) avec des équipes réparties sur 3 pays ?",
+    "comportement_attendu": "Le corpus ne contient pas de pratiques spécifiques au distanciel. L'agent doit être honnête sur cette limite tout en suggérant des pratiques adaptables (courtes, peu de matériel physique). Il ne doit pas présenter des pratiques nécessitant du matériel physique (brown paper, patafix) comme adaptées au distanciel sans réserves.",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 18,
+    "categorie": "Recommandation guidée",
+    "question": "Propose-moi un programme complet pour un atelier de 3 heures avec 15 participants : une pratique d'ouverture (Briser la glace), une d'idéation et une de clôture (bilan).",
+    "comportement_attendu": "L'agent doit proposer 3 pratiques en respectant : (1) les phases correctes (ICE pour ouverture, ID pour idéation, BIL pour clôture), (2) la contrainte de 15 participants (dans la plage autorisée), (3) une durée totale cohérente avec 3 heures. Il doit justifier brièvement chaque choix et éventuellement ajouter les pratiques à la session.",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 19,
+    "categorie": "Recommandation guidée",
+    "question": "Je lance un nouveau projet produit avec une équipe de 8 personnes. Quelles 2 à 3 pratiques utiliser pour la première réunion de lancement afin d'aligner tout le monde sur la vision ?",
+    "comportement_attendu": "L'agent doit recommander des pratiques phase Ouverture/Exploration adaptées à 8 participants, orientées partage de vision (catégorie VIZ : Empathy Map, Retour vers le futur, Business Model Canvas, Session Pré-Mortem). Il doit justifier les choix en lien avec le contexte (lancement, alignement vision, 8 personnes).",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 20,
+    "categorie": "Recommandation guidée",
+    "question": "Mon équipe de 10 personnes est démotivée après un projet difficile. Propose-moi 2 pratiques pour une rétrospective bienveillante qui aide à tourner la page et à identifier des axes d'amélioration.",
+    "comportement_attendu": "L'agent doit recommander des pratiques catégorie S'améliorer (BIL) adaptées à 10 participants, avec un angle bienveillant et constructif. Des pratiques comme L'Étoile de Mer, La Rétrospective 4L ou L'Arbre à Post-it sont pertinentes. L'agent doit expliquer pourquoi ces pratiques sont bienveillantes et aident à la remobilisation.",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  }
+]
