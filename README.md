@@ -1,7 +1,7 @@
 # Facilito
 
 Application web Python/FastAPI pour aider les facilitateurs à concevoir des ateliers collaboratifs. Un agent IA (LLM avec function-calling) recommande des pratiques issues d'un RAG et peut agir directement sur les sessions.
-Vibe codé.
+
 ---
 
 ## Lancement rapide avec Docker
