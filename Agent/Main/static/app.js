@@ -63,6 +63,7 @@ const App = (() => {
       sel.appendChild(o);
     });
 
+    _initVoice();
     await loadFacilitators();
 
     // Auto-resize textareas
@@ -595,6 +596,7 @@ const App = (() => {
     if (tid2) tid2.remove();
     _appendBubble("agent", reply, "chat-messages");
     _appendBubble("agent", reply, "chat-messages-mobile");
+    _speak(reply);
     _appendRating("chat-messages", state.session ? state.session.id : 0);
     _appendRating("chat-messages-mobile", state.session ? state.session.id : 0);
   }
@@ -657,6 +659,126 @@ const App = (() => {
     panel.style.display = state.mobileAgentOpen ? "flex" : "none";
   }
 
+  // ── Voice ─────────────────────────────────────────────────────────────────
+  const _voice = {
+    recog:        null,
+    synth:        window.speechSynthesis || null,
+    voices:       [],
+    selected:     null,
+    recording:    false,
+    settingsOpen: false,
+  };
+
+  function _initVoice() {
+    if (!_voice.synth) return;
+
+    function _loadVoices() {
+      const all = _voice.synth.getVoices();
+      if (!all.length) return; // pas encore prêt
+      _voice.voices = all.filter(v => v.lang.startsWith("fr"));
+      if (!_voice.voices.length) _voice.voices = all; // fallback toutes langues
+      const saved = localStorage.getItem("facilito_tts_voice");
+      _voice.selected = _voice.voices.find(v => v.name === saved) || _voice.voices[0] || null;
+      _populateVoiceSelect();
+    }
+
+    // Chrome charge les voix de façon asynchrone
+    _voice.synth.onvoiceschanged = _loadVoices;
+    // Firefox / Safari les charge de façon synchrone
+    _loadVoices();
+    // Fallback si onvoiceschanged ne se déclenche jamais
+    setTimeout(_loadVoices, 500);
+
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    _voice.recog = new SR();
+    _voice.recog.lang = "fr-FR";
+    _voice.recog.continuous = false;
+    _voice.recog.interimResults = true;
+
+    _voice.recog.onresult = e => {
+      let t = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) t += e.results[i][0].transcript;
+      ["chat-input", "chat-input-mobile"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.value = t; el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
+      });
+    };
+
+    _voice.recog.onend = () => {
+      _voice.recording = false;
+      _updateMicBtns();
+      const inp = document.getElementById("chat-input");
+      if (inp && inp.value.trim()) { sendChat(); return; }
+      const inpm = document.getElementById("chat-input-mobile");
+      if (inpm && inpm.value.trim()) sendChatMobile();
+    };
+
+    _voice.recog.onerror = () => {
+      _voice.recording = false;
+      _updateMicBtns();
+    };
+  }
+
+  function _populateVoiceSelect() {
+    const sel = document.getElementById("voice-select");
+    if (!sel || !_voice.voices.length) return;
+    sel.innerHTML = _voice.voices.map(v =>
+      `<option value="${v.name}"${v === _voice.selected ? " selected" : ""}>${v.name}</option>`
+    ).join("");
+  }
+
+  function _updateMicBtns() {
+    ["mic-btn", "mic-btn-mobile"].forEach(id => {
+      const b = document.getElementById(id);
+      if (!b) return;
+      b.classList.toggle("recording", _voice.recording);
+      b.title = _voice.recording ? "Arrêter l'enregistrement" : "Dicter un message";
+    });
+  }
+
+  function _speak(text) {
+    if (!_voice.synth) return;
+    // Réessaie de charger les voix si pas encore disponibles
+    if (!_voice.selected) { setTimeout(() => _speak(text), 600); return; }
+    _voice.synth.cancel();
+    const clean = text
+      .replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1")
+      .replace(/#{1,6} /g, "").replace(/<br>/gi, " ")
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"');
+    const utt = new SpeechSynthesisUtterance(clean);
+    utt.lang = "fr-FR";
+    utt.voice = _voice.selected;
+    _voice.synth.speak(utt);
+  }
+
+  function toggleVoiceInput() {
+    if (!_voice.recog) { alert("Votre navigateur ne supporte pas la reconnaissance vocale."); return; }
+    if (_voice.recording) {
+      _voice.recog.stop();
+    } else {
+      if (_voice.synth) _voice.synth.cancel();
+      _voice.recog.start();
+      _voice.recording = true;
+      _updateMicBtns();
+    }
+  }
+
+  function toggleVoiceSettings() {
+    _voice.settingsOpen = !_voice.settingsOpen;
+    const p = document.getElementById("voice-settings-panel");
+    if (p) p.style.display = _voice.settingsOpen ? "flex" : "none";
+    if (_voice.settingsOpen) _populateVoiceSelect();
+  }
+
+  function changeVoice(name) {
+    _voice.selected = _voice.voices.find(v => v.name === name) || _voice.selected;
+    if (_voice.selected) {
+      localStorage.setItem("facilito_tts_voice", _voice.selected.name);
+      _speak("Bonjour, je suis votre assistant facilitateur Facilito.");
+    }
+  }
+
   // ── PDF ───────────────────────────────────────────────────────────────────
   function exportPDF() {
     if (!state.session) return;
@@ -685,6 +807,7 @@ const App = (() => {
     showClients, createClient, createTeam, showTab,
     showDashboard, refreshDashboard, saveCostConfig, toggleLogFilter,
     sendChat, sendChatMobile, toggleMobileAgent,
+    toggleVoiceInput, toggleVoiceSettings, changeVoice,
     exportPDF,
   };
 })();

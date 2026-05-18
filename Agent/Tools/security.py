@@ -14,9 +14,25 @@ from Agent.Tools.erreur import (
 )
 
 try:
-    from openai.error import AuthenticationError, APIError, InvalidRequestError, OpenAIError, ServiceUnavailableError
-except ImportError:  # pragma: no cover
-    AuthenticationError = APIError = InvalidRequestError = OpenAIError = ServiceUnavailableError = Exception
+    # SDK v1+ / v2+
+    from openai import AuthenticationError, APIError, APIConnectionError
+    OpenAIError = APIError
+    ServiceUnavailableError = APIConnectionError
+    InvalidRequestError = type("_InvalidRequestError", (BaseException,), {})  # non utilisé v1+
+except ImportError:
+    try:
+        # SDK v0.x (legacy)
+        from openai.error import AuthenticationError, APIError, OpenAIError, ServiceUnavailableError  # type: ignore
+        InvalidRequestError = APIError
+        APIConnectionError = ServiceUnavailableError
+    except ImportError:
+        # Fallback — classes isolées pour ne PAS matcher toutes les exceptions
+        AuthenticationError = type("_AuthErr", (BaseException,), {})
+        APIError = type("_APIErr", (BaseException,), {})
+        APIConnectionError = type("_ConnErr", (BaseException,), {})
+        OpenAIError = APIError
+        ServiceUnavailableError = APIConnectionError
+        InvalidRequestError = APIError
 
 _MAX_INPUT_LENGTH = int(os.environ.get("MAX_USER_INPUT_LENGTH", 5000))
 _MIN_INPUT_LENGTH = int(os.environ.get("MIN_USER_INPUT_LENGTH", 1))
@@ -114,13 +130,19 @@ def _normalize_llm_exception(exc: Exception) -> Exception:
     if isinstance(exc, FutureTimeout) or "timeout" in lowered:
         return LLMTimeoutError("Le service LLM n'a pas répondu à temps.")
 
-    if isinstance(exc, (AuthenticationError, InvalidRequestError)) or "invalid api key" in lowered or "authentication" in lowered:
-        return InvalidAPIKeyError("Clé API invalide")
+    # 401 — clé invalide ou expirée (AuthenticationError uniquement, pas APIError générique)
+    if isinstance(exc, AuthenticationError) or "invalid api key" in lowered or "incorrect api key" in lowered:
+        return InvalidAPIKeyError("Clé API invalide ou expirée.")
 
+    # 429 — quota dépassé ou rate limit
+    if "insufficient_quota" in lowered or "quota" in lowered or "rate_limit" in lowered or "rate limit" in lowered:
+        return ExternalServiceError("Quota OpenAI dépassé. Ajoutez des crédits sur platform.openai.com.")
+
+    # Erreurs réseau / service
     if isinstance(exc, (APIError, ServiceUnavailableError, OpenAIError)) or "connection" in lowered or "failed to connect" in lowered:
-        return ExternalServiceError(message)
+        return ExternalServiceError(f"Erreur du service LLM : {message[:200]}")
 
-    return ExternalServiceError(message)
+    return ExternalServiceError(f"Erreur inattendue : {message[:200]}")
 
 
 def _call_llm(provider: Any, messages: list[dict], tools: list[dict] | None, timeout: int) -> tuple[dict, dict]:

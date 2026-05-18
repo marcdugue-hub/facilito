@@ -546,6 +546,82 @@ select.status-select { font-size: .8rem; padding: 3px 8px; }
 .star:hover { transform: scale(1.2); }
 .rating-done { font-size: .75rem; color: var(--muted); padding: 4px 0; align-self: flex-start; }
 
+/* ── Voice settings panel ───────────────────────────────────────── */
+#voice-settings-panel {
+  background: var(--dark);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#voice-settings-panel label {
+  font-size: .78rem;
+  color: var(--pink-m);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+#voice-settings-panel select {
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.15);
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: .85rem;
+}
+#voice-settings-panel select:focus {
+  border-color: var(--pink);
+  box-shadow: 0 0 0 3px rgba(216,52,110,.2);
+  outline: none;
+}
+#voice-settings-panel select option { background: var(--dark); color: #fff; }
+.voice-hint { font-size: .72rem; color: rgba(255,255,255,.4); }
+
+/* ── Voice settings button ──────────────────────────────────────── */
+#voice-settings-btn {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  opacity: .7;
+  transition: opacity .15s;
+  flex-shrink: 0;
+}
+#voice-settings-btn:hover { opacity: 1; }
+
+/* ── Mic button ─────────────────────────────────────────────────── */
+.mic-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  color: var(--dark);
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.mic-btn:hover {
+  border-color: var(--pink);
+  color: var(--pink);
+}
+.mic-btn.recording {
+  background: var(--pink);
+  border-color: var(--pink);
+  color: #fff;
+  animation: mic-pulse 1s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(216,52,110,.5); }
+  50%       { box-shadow: 0 0 0 8px rgba(216,52,110,0); }
+}
+
 /* Print (PDF) */
 @media print {
   #agent-panel, #topbar, #agent-bubble { display: none; }
