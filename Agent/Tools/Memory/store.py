@@ -34,6 +34,10 @@ def clear(session_id: int) -> None:
     _histories[session_id].clear()
 
 
+def clear_all_history() -> None:
+    _histories.clear()
+
+
 def build_system_prompt(session_context: dict | None) -> str:
     lines = [
         "Tu es un assistant expert en facilitation d'ateliers collaboratifs.",

@@ -24,7 +24,7 @@ from Agent.Tools.Database import facilitators as db_fac
 from Agent.Tools.Database import sessions as db_ses
 from Agent.Tools.Database import participants as db_par
 from Agent.Tools.Database import clients_teams as db_ct
-from Agent.Tools.Memory.store import build_system_prompt, get_history, add_message, add_raw_message
+from Agent.Tools.Memory.store import build_system_prompt, get_history, add_message, add_raw_message, clear_all_history
 from Agent.Tools.RAG.search import search_practices
 from Agent.Tools.Database.analytics import (
     log_event, log_rating, get_kpis, get_logs, get_cost_config, set_cost_config
@@ -61,14 +61,20 @@ def _load_special_practices() -> list[dict]:
 def _build_provider(mode: str):
     cfg = _load_config()
     if mode == "deepseek":
+        key = os.environ.get("DEEPSEEK_API_KEY", "")
+        if not key:
+            raise ValueError("Clé DEEPSEEK_API_KEY absente de la configuration.")
         from Agent.LLM.deepseek_provider import DeepSeekProvider
         return DeepSeekProvider(
-            api_key=os.environ["DEEPSEEK_API_KEY"],
+            api_key=key,
             model=cfg["llm"]["deepseek_model"],
             base_url=cfg["llm"]["deepseek_base_url"],
         )
+    key = os.environ.get("OPENAI_API_KEY", "")
+    if not key:
+        raise ValueError("Clé OPENAI_API_KEY absente de la configuration.")
     from Agent.LLM.openai_provider import OpenAIProvider
-    return OpenAIProvider(api_key=os.environ["OPENAI_API_KEY"], model=cfg["llm"]["openai_model"])
+    return OpenAIProvider(api_key=key, model=cfg["llm"]["openai_model"])
 
 
 # ── Agent tools definition ────────────────────────────────────────────────────
@@ -392,7 +398,7 @@ def _dispatch_tool(name: str, args: dict, session_id: int = 0) -> str:
 # ── App factory ───────────────────────────────────────────────────────────────
 
 def create_app(llm_mode: str = "openai") -> FastAPI:
-    provider = _build_provider(llm_mode)
+    _state = {"provider": _build_provider(llm_mode), "llm_mode": llm_mode}
     app = FastAPI(title="Facilito")
 
     static_dir = Path(__file__).parent / "static"
@@ -473,6 +479,9 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
     class ChatMessage(BaseModel):
         session_id: int
         message: str
+
+    class LLMConfig(BaseModel):
+        mode: str
 
     # ── Routes ────────────────────────────────────────────────────────────────
 
@@ -706,6 +715,25 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
         set_cost_config(body.cost_in, body.cost_out)
         return get_cost_config()
 
+    # ── LLM config ───────────────────────────────────────────────────────────
+
+    @app.get("/api/config/llm")
+    def get_llm_config():
+        return {"mode": _state["llm_mode"]}
+
+    @app.post("/api/config/llm")
+    def set_llm_config(body: LLMConfig):
+        mode = body.mode
+        if mode not in ("openai", "deepseek"):
+            raise HTTPException(400, "Mode invalide. Choisir 'openai' ou 'deepseek'.")
+        try:
+            _state["provider"] = _build_provider(mode)
+            _state["llm_mode"] = mode
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+        clear_all_history()
+        return {"mode": mode}
+
     # ── Agent chat ────────────────────────────────────────────────────────────
 
     @app.post("/api/agent/chat")
@@ -739,7 +767,7 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
             llm_start = time.time()
             try:
                 response, usage = call_llm_with_retry(
-                    provider,
+                    _state["provider"],
                     messages,
                     TOOLS,
                     timeout=int(os.environ.get("LLM_TIMEOUT_SECONDS", 20)),

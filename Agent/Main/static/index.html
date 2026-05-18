@@ -229,61 +229,94 @@
         </div>
       </section>
 
-      <!-- Screen: Dashboard -->
+      <!-- Screen: Dashboard / Réglages -->
       <section id="screen-dashboard" class="screen">
         <div class="page-header">
-          <h2>Tableau de bord</h2>
-          <button class="btn btn-outline btn-sm" onclick="App.refreshDashboard()">↻ Rafraîchir</button>
+          <h2>Réglages</h2>
         </div>
         <div class="mascotte-strip">
           <div class="mascotte-strip-text">
-            <strong>Activité de l'agent</strong>
-            <p>Suivez les appels LLM et RAG, analysez les coûts par token et consultez les logs en temps réel.</p>
+            <strong>Réglages &amp; Tableau de bord</strong>
+            <p>Configurez le LLM et la voix du bot, puis consultez l'activité de l'agent, les coûts et les logs.</p>
           </div>
           <img src="/mascotte/tldrawFile-2.png" alt="">
         </div>
 
-        <!-- KPI cards -->
-        <div id="kpi-grid" class="kpi-grid"></div>
-
-        <!-- Cost config -->
-        <div class="section-block" style="margin-top:20px">
-          <h3>Coût des tokens ($ / million)</h3>
-          <div class="form-row">
-            <div class="form-group" style="max-width:180px">
-              <label>Tokens entrants (IN)</label>
-              <input id="cost-in" type="number" step="0.01" min="0" placeholder="1.5"/>
-            </div>
-            <div class="form-group" style="max-width:180px">
-              <label>Tokens sortants (OUT)</label>
-              <input id="cost-out" type="number" step="0.01" min="0" placeholder="2.5"/>
-            </div>
-            <button class="btn btn-primary btn-sm" style="align-self:flex-end" onclick="App.saveCostConfig()">Enregistrer</button>
-          </div>
+        <div class="tabs">
+          <button class="tab-btn dash-tab-btn active" onclick="App.showDashTab('settings')">⚙ Réglages</button>
+          <button class="tab-btn dash-tab-btn" onclick="App.showDashTab('metrics')">Tableau de bord</button>
         </div>
 
-        <!-- Voix du bot -->
-        <div class="section-block" style="margin-top:20px">
-          <h3>Voix du bot</h3>
-          <div class="form-row">
-            <div class="form-group" style="max-width:320px">
-              <label>Voix de synthèse vocale</label>
-              <select id="voice-select" onchange="App.changeVoice(this.value)"></select>
+        <!-- ── Tab : Réglages ───────────────────────── -->
+        <div id="dash-tab-settings">
+
+          <!-- LLM -->
+          <div class="section-block">
+            <h3>Modèle LLM</h3>
+            <div class="form-row">
+              <div class="form-group" style="max-width:280px">
+                <label>Fournisseur d'IA</label>
+                <select id="llm-mode-select" onchange="App.changeLLM(this.value)">
+                  <option value="openai">OpenAI (GPT-4o)</option>
+                  <option value="deepseek">DeepSeek</option>
+                </select>
+              </div>
             </div>
+            <p style="color:var(--muted);font-size:.82rem;margin-top:4px">Changer de LLM vide la mémoire de l'agent.</p>
           </div>
-          <p style="color:var(--muted);font-size:.82rem;margin-top:4px">Sélectionnez une voix pour l'écouter.</p>
+
+          <!-- Voix du bot -->
+          <div class="section-block">
+            <h3>Voix du bot</h3>
+            <div class="form-row">
+              <div class="form-group" style="max-width:320px">
+                <label>Voix de synthèse vocale</label>
+                <select id="voice-select" onchange="App.changeVoice(this.value)"></select>
+              </div>
+            </div>
+            <p style="color:var(--muted);font-size:.82rem;margin-top:4px">Sélectionnez une voix pour l'écouter.</p>
+          </div>
+
         </div>
 
-        <!-- Logs -->
-        <div class="section-block" style="margin-top:20px">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-            <h3 style="margin:0">Logs</h3>
-            <button class="log-filter active" data-type="llm" onclick="App.toggleLogFilter('llm',this)">LLM</button>
-            <button class="log-filter active" data-type="rag" onclick="App.toggleLogFilter('rag',this)">RAG</button>
-            <button class="log-filter active" data-type="db"  onclick="App.toggleLogFilter('db',this)">DB</button>
-            <button class="log-filter active" data-type="resolution" onclick="App.toggleLogFilter('resolution',this)">Résolution</button>
+        <!-- ── Tab : Tableau de bord ────────────────── -->
+        <div id="dash-tab-metrics" style="display:none">
+
+          <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+            <button class="btn btn-outline btn-sm" onclick="App.refreshDashboard()">↻ Rafraîchir</button>
           </div>
-          <div id="log-viewer" class="log-viewer"></div>
+
+          <!-- KPI cards -->
+          <div id="kpi-grid" class="kpi-grid"></div>
+
+          <!-- Cost config -->
+          <div class="section-block" style="margin-top:20px">
+            <h3>Coût des tokens ($ / million)</h3>
+            <div class="form-row">
+              <div class="form-group" style="max-width:180px">
+                <label>Tokens entrants (IN)</label>
+                <input id="cost-in" type="number" step="0.01" min="0" placeholder="1.5"/>
+              </div>
+              <div class="form-group" style="max-width:180px">
+                <label>Tokens sortants (OUT)</label>
+                <input id="cost-out" type="number" step="0.01" min="0" placeholder="2.5"/>
+              </div>
+              <button class="btn btn-primary btn-sm" style="align-self:flex-end" onclick="App.saveCostConfig()">Enregistrer</button>
+            </div>
+          </div>
+
+          <!-- Logs -->
+          <div class="section-block" style="margin-top:20px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+              <h3 style="margin:0">Logs</h3>
+              <button class="log-filter active" data-type="llm" onclick="App.toggleLogFilter('llm',this)">LLM</button>
+              <button class="log-filter active" data-type="rag" onclick="App.toggleLogFilter('rag',this)">RAG</button>
+              <button class="log-filter active" data-type="db"  onclick="App.toggleLogFilter('db',this)">DB</button>
+              <button class="log-filter active" data-type="resolution" onclick="App.toggleLogFilter('resolution',this)">Résolution</button>
+            </div>
+            <div id="log-viewer" class="log-viewer"></div>
+          </div>
+
         </div>
       </section>
 

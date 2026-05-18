@@ -615,9 +615,37 @@ const App = (() => {
 
   async function showDashboard() {
     show("dashboard");
-    breadcrumb([{ label: "Tableau de bord" }]);
+    breadcrumb([{ label: "Réglages" }]);
+    showDashTab("settings");
     _populateVoiceSelect();
-    await refreshDashboard();
+    const config = await get("/api/config/llm").catch(() => ({ mode: "openai" }));
+    const sel = document.getElementById("llm-mode-select");
+    if (sel) sel.value = config.mode;
+  }
+
+  function showDashTab(tab) {
+    document.getElementById("dash-tab-settings").style.display = tab === "settings" ? "" : "none";
+    document.getElementById("dash-tab-metrics").style.display  = tab === "metrics"  ? "" : "none";
+    document.querySelectorAll(".dash-tab-btn").forEach((b, i) =>
+      b.classList.toggle("active",
+        (i === 0 && tab === "settings") ||
+        (i === 1 && tab === "metrics")));
+    if (tab === "metrics") refreshDashboard();
+  }
+
+  async function changeLLM(mode) {
+    const sel = document.getElementById("llm-mode-select");
+    try {
+      await post("/api/config/llm", { mode });
+      const label = mode === "openai" ? "OpenAI GPT-4o" : "DeepSeek";
+      document.getElementById("chat-messages").innerHTML = "";
+      document.getElementById("chat-messages-mobile").innerHTML = "";
+      addAgentMessage(`LLM changé pour ${label}. La mémoire de l'agent a été vidée.`);
+    } catch(e) {
+      alert("Erreur lors du changement de LLM : " + e.message);
+      const current = await get("/api/config/llm").catch(() => ({ mode: "openai" }));
+      if (sel) sel.value = current.mode;
+    }
   }
 
   async function refreshDashboard() {
@@ -992,7 +1020,7 @@ const App = (() => {
     showClients, createClient, createTeam, showTab,
     showAddTeamToClient, hideAddTeamToClient, createTeamForClient, deleteTeam,
     loadAllParticipants, editParticipantGlobal, deleteParticipantGlobal,
-    showDashboard, refreshDashboard, saveCostConfig, toggleLogFilter,
+    showDashboard, showDashTab, changeLLM, refreshDashboard, saveCostConfig, toggleLogFilter,
     sendChat, sendChatMobile, toggleMobileAgent,
     toggleVoiceInput, changeVoice,
     exportPDF,
