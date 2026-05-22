@@ -1,6 +1,6 @@
 """
 Script d'initialisation du RAG Chroma DB.
-Usage : python -m Agent.Tools.RAG.init_rag [--reinit]
+Usage : python -m Agent.Tools.RAG.init_rag [--openai | --local] [--reinit]
 """
 import argparse
 import re
@@ -80,15 +80,22 @@ def load_practices() -> list[dict]:
     return practices
 
 
-def init_chroma(reinit: bool = False) -> None:
+def init_chroma(mode: str = "openai", reinit: bool = False) -> None:
     import chromadb
-
-    from Agent.Tools.RAG.embedder import get_embeddings
 
     cfg = _load_config()
 
-    chroma_path = str(_BASE_DIR / cfg["chroma"]["path"])
-    collection_name = cfg["chroma"]["collection"]
+    if mode == "openai":
+        from Agent.Tools.RAG.embedder import get_openai_embeddings
+        embed_fn = get_openai_embeddings
+        chroma_cfg = cfg["chroma"]
+    else:
+        from Agent.Tools.RAG.embedder import get_embeddings
+        embed_fn = get_embeddings
+        chroma_cfg = cfg["chroma_local"]
+
+    chroma_path = str(_BASE_DIR / chroma_cfg["path"])
+    collection_name = chroma_cfg["collection"]
 
     client = chromadb.PersistentClient(path=chroma_path)
 
@@ -111,13 +118,13 @@ def init_chroma(reinit: bool = False) -> None:
     )
 
     practices = load_practices()
-    print(f"  {len(practices)} pratiques trouvées. Génération des embeddings...")
+    print(f"  {len(practices)} pratiques trouvées. Génération des embeddings ({mode})...")
 
     batch_size = 50
     for i in range(0, len(practices), batch_size):
         batch = practices[i:i + batch_size]
         texts = [p["text_to_embed"] for p in batch]
-        embeddings = get_embeddings(texts)
+        embeddings = embed_fn(texts)
 
         collection.add(
             ids=[p["id"] for p in batch],
@@ -140,11 +147,15 @@ def init_chroma(reinit: bool = False) -> None:
         )
         print(f"  Lot {i // batch_size + 1} : {len(batch)} pratiques indexées.")
 
-    print(f"\nRAG initialisé : {collection.count()} documents dans '{collection_name}'.")
+    print(f"\nRAG initialisé : {collection.count()} documents dans '{collection_name}' ({mode}).")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Initialise le RAG Facilito")
+    parser.add_argument("--openai", action="store_true", help="Initialiser le RAG OpenAI (défaut)")
+    parser.add_argument("--local", action="store_true", help="Initialiser le RAG local (sentence-transformers)")
     parser.add_argument("--reinit", action="store_true", help="Supprime et recrée la collection")
     args = parser.parse_args()
-    init_chroma(reinit=args.reinit)
+
+    mode = "local" if args.local else "openai"
+    init_chroma(mode=mode, reinit=args.reinit)

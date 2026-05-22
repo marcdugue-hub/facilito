@@ -265,6 +265,19 @@
             <p style="color:var(--muted);font-size:.82rem;margin-top:4px">Changer de LLM vide la mémoire de l'agent.</p>
           </div>
 
+          <!-- Mode vocal -->
+          <div class="section-block">
+            <h3>Mode vocal</h3>
+            <div class="form-row">
+              <label class="toggle-row">
+                <input type="checkbox" id="voice-mode-toggle" onchange="App.toggleVoiceMode(this.checked)">
+                <span class="toggle-slider"></span>
+                Synthèse vocale des réponses
+              </label>
+            </div>
+            <p style="color:var(--muted);font-size:.82rem;margin-top:4px">Le bot lira ses réponses à voix haute.</p>
+          </div>
+
           <!-- Voix du bot -->
           <div class="section-block">
             <h3>Voix du bot</h3>
@@ -313,6 +326,7 @@
               <button class="log-filter active" data-type="rag" onclick="App.toggleLogFilter('rag',this)">RAG</button>
               <button class="log-filter active" data-type="db"  onclick="App.toggleLogFilter('db',this)">DB</button>
               <button class="log-filter active" data-type="resolution" onclick="App.toggleLogFilter('resolution',this)">Résolution</button>
+              <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="App.downloadLogs()">⬇ JSON</button>
             </div>
             <div id="log-viewer" class="log-viewer"></div>
           </div>

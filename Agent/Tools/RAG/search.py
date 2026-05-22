@@ -12,20 +12,35 @@ def _load_config() -> dict:
 
 
 @lru_cache(maxsize=1)
-def _get_collection():
+def _get_openai_collection():
     import chromadb
     cfg = _load_config()
     client = chromadb.PersistentClient(path=str(_BASE_DIR / cfg["chroma"]["path"]))
     return client.get_collection(cfg["chroma"]["collection"])
 
 
-def search_practices(query: str, n_results: int = 5) -> list[dict]:
-    """Semantic search in ChromaDB. Returns list of practice metadata dicts."""
-    from Agent.Tools.RAG.embedder import get_embeddings
+@lru_cache(maxsize=1)
+def _get_local_collection():
+    import chromadb
+    cfg = _load_config()
+    client = chromadb.PersistentClient(path=str(_BASE_DIR / cfg["chroma_local"]["path"]))
+    return client.get_collection(cfg["chroma_local"]["collection"])
 
-    query_embedding = get_embeddings([query])[0]
 
-    collection = _get_collection()
+def search_practices(query: str, n_results: int = 5, embedding_mode: str = "local") -> list[dict]:
+    """Semantic search in ChromaDB. Returns list of practice metadata dicts.
+    
+    embedding_mode: "openai" → OpenAI ChromaDB, "local" → sentence-transformers ChromaDB.
+    """
+    if embedding_mode == "openai":
+        from Agent.Tools.RAG.embedder import get_openai_embeddings
+        query_embedding = get_openai_embeddings([query])[0]
+        collection = _get_openai_collection()
+    else:
+        from Agent.Tools.RAG.embedder import get_embeddings
+        query_embedding = get_embeddings([query])[0]
+        collection = _get_local_collection()
+
     results = collection.query(
         query_embeddings=[query_embedding],
         n_results=min(n_results, collection.count()),

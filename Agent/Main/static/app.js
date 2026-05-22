@@ -618,9 +618,15 @@ const App = (() => {
     breadcrumb([{ label: "Réglages" }]);
     showDashTab("settings");
     _populateVoiceSelect();
-    const config = await get("/api/config/llm").catch(() => ({ mode: "openai" }));
+    const [config, voice] = await Promise.all([
+      get("/api/config/llm").catch(() => ({ mode: "openai" })),
+      get("/api/settings/voice").catch(() => ({ enabled: false })),
+    ]);
     const sel = document.getElementById("llm-mode-select");
     if (sel) sel.value = config.mode;
+    _voiceModeEnabled = voice.enabled;
+    const toggle = document.getElementById("voice-mode-toggle");
+    if (toggle) toggle.checked = _voiceModeEnabled;
   }
 
   function showDashTab(tab) {
@@ -718,20 +724,55 @@ const App = (() => {
       let payloadHtml = "";
       if (l.payload) {
         try {
-          const pretty = JSON.stringify(JSON.parse(l.payload), null, 2);
-          payloadHtml = `<div class="log-payload">${esc(pretty)}</div>`;
+          const data = JSON.parse(l.payload);
+          if (l.event_type === "llm" && data.request) {
+            const mode = data.mode || "deepseek";
+            const modeLabel = mode === "openai" ? "OpenAI" : "DeepSeek";
+            const roleColors = { system: "#89b4fa", user: "#a6e3a1", assistant: "#f9e2af", tool: "#f38ba8" };
+            const reqHtml = data.request.map(m => {
+              const color = roleColors[m.role] || "#cdd6f4";
+              const icon = m.role === "system" ? "⚙" : m.role === "user" ? "👤" : m.role === "assistant" ? "🤖" : "🔧";
+              let content = esc(m.content || "");
+              if (m.tool_calls) content = `<span style="color:#89b4fa">appels outil : ${esc(m.tool_calls.join(", "))}</span>`;
+              return `<div style="margin:2px 0"><span style="color:${color}">${icon} <b>${m.role}</b></span> ${content}</div>`;
+            }).join("");
+            const preview = data.response_preview ? `<details style="margin-top:4px"><summary style="color:#6c7086;cursor:pointer">Réponse</summary><div style="margin-top:4px;padding:6px;background:rgba(0,0,0,.2);border-radius:4px">${esc(data.response_preview)}</div></details>` : "";
+            payloadHtml = `<div class="log-payload">${reqHtml}${preview}</div>`;
+          } else {
+            const pretty = JSON.stringify(data, null, 2);
+            payloadHtml = `<div class="log-payload">${esc(pretty)}</div>`;
+          }
         } catch {
           payloadHtml = `<div class="log-payload">${esc(l.payload)}</div>`;
         }
       }
-      return `<div class="log-entry" data-type="${l.event_type}" onclick="this.classList.toggle('expanded')">
+      let extraAttrs = "";
+      if (l.event_type === "llm") {
+        const p = JSON.parse(l.payload || "{}");
+        extraAttrs = ` data-mode="${p.mode || 'deepseek'}" data-status="${p.status || 'done'}"`;
+      }
+      const statusDot = l.event_type === "llm" && l.payload && JSON.parse(l.payload).status === "pending"
+        ? `<span class="log-status-dot" title="Appel en cours…"></span>` : "";
+      return `<div class="log-entry" data-type="${l.event_type}"${extraAttrs} onclick="this.classList.toggle('expanded')">
         <span class="log-ts">${l.timestamp}</span>
+        ${statusDot}
         <span class="log-type">[${l.event_type.toUpperCase()}]</span>
         <span class="log-summary">${esc(l.summary || "")}</span>
         ${payloadHtml}
       </div>`;
     }).join("");
     _applyLogFilters();
+  }
+
+  async function downloadLogs() {
+    const logs = await get("/api/dashboard/logs?limit=15");
+    const blob = new Blob([JSON.stringify(logs, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `facilito-logs-${new Date().toISOString().slice(0, 16).replace("T", "-")}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // ── Chat / Agent ──────────────────────────────────────────────────────────
@@ -876,6 +917,8 @@ const App = (() => {
   }
 
   // ── Voice ─────────────────────────────────────────────────────────────────
+  let _voiceModeEnabled = false;
+
   const _voice = {
     recog:        null,
     synth:        window.speechSynthesis || null,
@@ -957,6 +1000,7 @@ const App = (() => {
     if (!_voice.synth) return;
     // Réessaie de charger les voix si pas encore disponibles
     if (!_voice.selected) { setTimeout(() => _speak(text), 600); return; }
+    if (!_voiceModeEnabled) return;
     _voice.synth.cancel();
     const clean = text
       .replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1")
@@ -984,11 +1028,19 @@ const App = (() => {
     // Voice settings moved to the dashboard — no-op kept for compatibility
   }
 
+  function toggleVoiceMode(enabled) {
+    _voiceModeEnabled = enabled;
+    post("/api/settings/voice", { enabled });
+    if (enabled && _voice.selected) {
+      _speak("Bonjour, je suis votre assistant facilitateur Facilito.");
+    }
+  }
+
   function changeVoice(name) {
     _voice.selected = _voice.voices.find(v => v.name === name) || _voice.selected;
     if (_voice.selected) {
       localStorage.setItem("facilito_tts_voice", _voice.selected.name);
-      _speak("Bonjour, je suis votre assistant facilitateur Facilito.");
+      if (_voiceModeEnabled) _speak("Bonjour, je suis votre assistant facilitateur Facilito.");
     }
   }
 
@@ -1020,9 +1072,9 @@ const App = (() => {
     showClients, createClient, createTeam, showTab,
     showAddTeamToClient, hideAddTeamToClient, createTeamForClient, deleteTeam,
     loadAllParticipants, editParticipantGlobal, deleteParticipantGlobal,
-    showDashboard, showDashTab, changeLLM, refreshDashboard, saveCostConfig, toggleLogFilter,
+    showDashboard, showDashTab, changeLLM, refreshDashboard, saveCostConfig, toggleLogFilter, downloadLogs,
     sendChat, sendChatMobile, toggleMobileAgent,
-    toggleVoiceInput, changeVoice,
+    toggleVoiceInput, changeVoice, toggleVoiceMode,
     exportPDF,
   };
 })();

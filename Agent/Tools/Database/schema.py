@@ -129,5 +129,11 @@ def init_db() -> None:
 
         INSERT OR IGNORE INTO cost_config (key, value) VALUES ('cost_in',  1.5);
         INSERT OR IGNORE INTO cost_config (key, value) VALUES ('cost_out', 2.5);
+
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        INSERT OR IGNORE INTO app_settings (key, value) VALUES ('voice_mode', 'off');
         """)
         _migrate(conn)

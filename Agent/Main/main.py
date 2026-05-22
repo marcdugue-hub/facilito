@@ -27,7 +27,8 @@ from Agent.Tools.Database import clients_teams as db_ct
 from Agent.Tools.Memory.store import build_system_prompt, get_history, add_message, add_raw_message, clear_all_history
 from Agent.Tools.RAG.search import search_practices
 from Agent.Tools.Database.analytics import (
-    log_event, log_rating, get_kpis, get_logs, get_cost_config, set_cost_config
+    log_event, log_rating, get_kpis, get_logs, get_cost_config, set_cost_config,
+    get_app_setting, set_app_setting,
 )
 from Agent.Tools.security import (
     call_llm_with_retry,
@@ -92,11 +93,11 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_practices",
-            "description": "Recherche des pratiques de facilitation dans le RAG selon un besoin ou contexte.",
+            "description": "RECHERCHE OBLIGATOIRE dans la base RAG pour trouver des pratiques de facilitation. À appeler AVANT add_practice pour voir les pratiques disponibles. Fournir un query décrivant le type de pratique recherché (ex: 'icebreaker', 'idéation', 'rétrospective').",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Description du besoin ou contexte de l'atelier."},
+                    "query": {"type": "string", "description": "Mots-clés ou description du type de pratique recherché (ex: 'icebreaker', 'brainstorming', 'rétro', 'énergizer')."},
                     "n_results": {"type": "integer", "description": "Nombre de résultats souhaités (défaut 5).", "default": 5},
                 },
                 "required": ["query"],
@@ -156,7 +157,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "add_practice",
-            "description": "Ajoute une pratique au déroulé de la session. Utilise practice_id du RAG ou SPECIAL_*.",
+            "description": "Ajoute une pratique au déroulé de la session. Utilise practice_id retourné par search_practices (RAG) ou SPECIAL_*. Ne pas inventer de titre — utiliser le titre exact retourné par search_practices.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -330,12 +331,12 @@ def _is_rag_fallback(fn_name: str, result_str: str) -> bool:
         return False
 
 
-def _dispatch_tool(name: str, args: dict, session_id: int = 0) -> str:
+def _dispatch_tool(name: str, args: dict, session_id: int = 0, embedding_mode: str = "local") -> str:
     if name == "list_facilitators":
         result = db_fac.list_facilitators()
         return json.dumps(result, ensure_ascii=False)
     if name == "search_practices":
-        result = search_practices(args["query"], args.get("n_results", 5))
+        result = search_practices(args["query"], args.get("n_results", 5), embedding_mode=embedding_mode)
         return json.dumps(result, ensure_ascii=False)
     if name == "get_session_context":
         result = db_ses.get_session_context(args["session_id"])
@@ -655,7 +656,8 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
     # Practices search + special
     @app.get("/api/practices/search")
     def search(q: str, n: int = 5):
-        return search_practices(q, n)
+        em = "openai" if _state["llm_mode"] == "openai" else "local"
+        return search_practices(q, n, embedding_mode=em)
 
     @app.get("/api/practices/special")
     def get_special():
@@ -734,6 +736,21 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
         clear_all_history()
         return {"mode": mode}
 
+    # ── App settings ─────────────────────────────────────────────────────────
+
+    class VoiceModeBody(BaseModel):
+        enabled: bool
+
+    @app.get("/api/settings/voice")
+    def get_voice():
+        val = get_app_setting("voice_mode")
+        return {"enabled": val == "on"}
+
+    @app.post("/api/settings/voice")
+    def set_voice(body: VoiceModeBody):
+        set_app_setting("voice_mode", "on" if body.enabled else "off")
+        return {"enabled": body.enabled}
+
     # ── Agent chat ────────────────────────────────────────────────────────────
 
     @app.post("/api/agent/chat")
@@ -763,8 +780,38 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
 
         tool_results = []
         max_iterations = 10
-        for _ in range(max_iterations):
+        for iteration in range(max_iterations):
             llm_start = time.time()
+
+            # Build a readable log of the request being sent to the LLM
+            request_messages = []
+            for m in messages:
+                role = m.get("role", "")
+                content = m.get("content", "")
+                tc = m.get("tool_calls")
+                if role == "system":
+                    request_messages.append({"role": "system", "content": content[:600] + ("…" if len(content) > 600 else "")})
+                elif tc:
+                    names = [t["function"]["name"] for t in tc]
+                    request_messages.append({"role": "assistant", "tool_calls": names})
+                else:
+                    request_messages.append({"role": role, "content": content[:800]})
+
+            # Log BEFORE the LLM call so we can detect hangs/crashes
+            log_event(
+                session_id=session_id,
+                event_type="llm",
+                summary=f"LLM → appel #{iteration+1} en cours…",
+                payload=json.dumps({
+                    "mode": _state["llm_mode"],
+                    "status": "pending",
+                    "request": request_messages,
+                }, ensure_ascii=False),
+                tokens_in=0,
+                tokens_out=0,
+                duration_ms=0,
+            )
+
             try:
                 response, usage = call_llm_with_retry(
                     _state["provider"],
@@ -791,15 +838,19 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
 
             t_in  = usage.get("prompt_tokens", 0)
             t_out = usage.get("completion_tokens", 0)
+
+            payload = json.dumps({
+                "mode": _state["llm_mode"],
+                "status": "done",
+                "request": request_messages,
+                "tool_calls_requested": len(response.get("tool_calls") or []),
+                "response_preview": (response.get("content") or "")[:600],
+            }, ensure_ascii=False)
             log_event(
                 session_id=session_id,
                 event_type="llm",
                 summary=f"LLM — {t_in}T in, {t_out}T out — {llm_ms}ms",
-                payload=json.dumps({
-                    "messages": len(messages),
-                    "tool_calls_requested": len(response.get("tool_calls") or []),
-                    "response_preview": (response.get("content") or "")[:300],
-                }),
+                payload=payload,
                 tokens_in=t_in,
                 tokens_out=t_out,
                 duration_ms=llm_ms,
@@ -850,7 +901,8 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
 
                 tool_start = time.time()
                 try:
-                    result_str = _dispatch_tool(fn_name, fn_args, session_id=session_id)
+                    em = "openai" if _state["llm_mode"] == "openai" else "local"
+                    result_str = _dispatch_tool(fn_name, fn_args, session_id=session_id, embedding_mode=em)
                 except Exception as exc:
                     result_str = json.dumps({"error": str(exc)})
 
@@ -869,6 +921,9 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
 
                 parsed_result = json.loads(result_str)
                 safe_result = filter_sensitive_data(parsed_result)
+                if fn_name == "create_session" and isinstance(parsed_result, dict) and parsed_result.get("id"):
+                    session_id = parsed_result["id"]
+
                 tool_results.append({"tool": fn_name, "args": fn_args, "result": safe_result})
                 messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result_str})
 
@@ -984,12 +1039,11 @@ if __name__ == "__main__":
     import uvicorn
 
     parser = argparse.ArgumentParser(description="Facilito server")
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("--openai", action="store_true", default=True, help="Use OpenAI (default)")
-    group.add_argument("--deepseek", action="store_true", help="Use DeepSeek")
+    parser.add_argument("--openai", action="store_true", help="Use OpenAI")
+    parser.add_argument("--deepseek", action="store_true", help="Use DeepSeek (default)")
     args = parser.parse_args()
 
-    mode = "deepseek" if args.deepseek else "openai"
+    mode = "deepseek" if args.deepseek else ("openai" if args.openai else "deepseek")
     cfg = _load_config()
     host = os.environ.get("APP_HOST", cfg["app"]["host"])
     port = int(os.environ.get("APP_PORT", cfg["app"]["port"]))

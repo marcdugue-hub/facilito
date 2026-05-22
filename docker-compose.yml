@@ -6,9 +6,11 @@ services:
       - "8001:8000"
     volumes:
       - ./data:/app/data    # bind mount — SQLite + ChromaDB partagés avec l'hôte
+      - ~/.cache/huggingface:/root/.cache/huggingface    # modèles sentence-transformers (évite téléchargement)
     env_file:
       - Agent/.env
     environment:
       APP_HOST: "0.0.0.0"
       APP_PORT: "8000"
+    command: ["python", "-m", "Agent.Main.main", "--deepseek"]
     restart: unless-stopped

@@ -53,6 +53,20 @@ def set_cost_config(cost_in: float, cost_out: float) -> None:
         conn.commit()
 
 
+# ── App settings ──────────────────────────────────────────────────────────────
+
+def get_app_setting(key: str) -> str | None:
+    with get_connection() as conn:
+        row = conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_app_setting(key: str, value: str) -> None:
+    with get_connection() as conn:
+        conn.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", (key, value))
+        conn.commit()
+
+
 # ── KPIs ──────────────────────────────────────────────────────────────────────
 
 def get_kpis() -> dict:

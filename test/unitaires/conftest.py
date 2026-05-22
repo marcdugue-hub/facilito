@@ -28,10 +28,12 @@ def isolated_db(tmp_path):
 @pytest.fixture(autouse=True)
 def clear_rag_cache():
     """Vide le cache LRU du client Chroma entre les tests."""
-    from Agent.Tools.RAG.search import _get_collection
-    _get_collection.cache_clear()
+    from Agent.Tools.RAG.search import _get_openai_collection, _get_local_collection
+    _get_openai_collection.cache_clear()
+    _get_local_collection.cache_clear()
     yield
-    _get_collection.cache_clear()
+    _get_openai_collection.cache_clear()
+    _get_local_collection.cache_clear()
 
 
 @pytest.fixture(autouse=True)

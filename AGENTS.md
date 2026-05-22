@@ -12,8 +12,10 @@ python -m Agent.Main.main --openai      # GPT-4o (default)
 python -m Agent.Main.main --deepseek    # DeepSeek
 
 # RAG initialization (one-time, after cloning)
-python -m Agent.Tools.RAG.init_rag            # creates data/chroma_db + data/facilito.db
-python -m Agent.Tools.RAG.init_rag --reinit   # wipe and rebuild
+python -m Agent.Tools.RAG.init_rag              # creates data/chroma_db (OpenAI embeddings) + data/facilito.db
+python -m Agent.Tools.RAG.init_rag --local      # creates data/chroma_db_local (sentence-transformers, no API key)
+python -m Agent.Tools.RAG.init_rag --reinit     # wipe and rebuild
+python -m Agent.Tools.RAG.init_rag --reinit --local  # wipe and rebuild local
 
 # Tests — run after every code change before reporting done
 python -m pytest test/unitaires/ -v                          # 118 tests, 9 files

@@ -10,8 +10,13 @@ chroma:
   path: "data/chroma_db"
   collection: "facilito_practices"
 
+chroma_local:
+  path: "data/chroma_db_local"
+  collection: "facilito_practices"
+
 embedding:
   model: "paraphrase-multilingual-MiniLM-L12-v2"
+  openai_model: "text-embedding-3-small"
 
 llm:
   openai_model: "gpt-4o"

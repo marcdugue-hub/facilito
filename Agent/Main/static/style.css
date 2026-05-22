@@ -485,6 +485,29 @@ select.status-select { font-size: .8rem; padding: 3px 8px; }
 .log-filter.active[data-type="db"]         { background: #fff7ed; color: #c2410c; border-color: #fdba74; }
 .log-filter.active[data-type="resolution"] { background: #f3e8ff; color: #7e22ce; border-color: #d8b4fe; }
 
+/* LLM mode colors — OpenAI (vert) / DeepSeek (bleu) */
+.log-entry[data-type="llm"][data-mode="openai"]              { border-left-color: #10a37f; }
+.log-entry[data-type="llm"][data-mode="openai"]   .log-type  { color: #10a37f; }
+.log-entry[data-type="llm"][data-mode="deepseek"]            { border-left-color: #4F6BED; }
+.log-entry[data-type="llm"][data-mode="deepseek"] .log-type  { color: #4F6BED; }
+.log-entry[data-type="llm"][data-status="pending"]           { border-left-color: #fbbf24 !important; opacity: 0.7; }
+.log-entry[data-type="llm"][data-status="pending"] .log-type { color: #fbbf24 !important; }
+
+.log-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fbbf24;
+  animation: pulse-dot 1.2s ease-in-out infinite;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(0.7); }
+}
+
 .log-viewer {
   max-height: 420px;
   overflow-y: auto;
@@ -739,6 +762,45 @@ select.status-select { font-size: .8rem; padding: 3px 8px; }
 .participant-row .p-name  { flex: 1; font-weight: 600; min-width: 160px; }
 .participant-row .p-role  { font-size: .8rem; color: var(--muted); flex: 1; min-width: 100px; }
 .participant-row .p-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+
+/* ── Toggle switch ────────────────────────────────────────────────── */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: .9rem;
+  cursor: pointer;
+  user-select: none;
+}
+.toggle-row input[type="checkbox"] {
+  display: none;
+}
+.toggle-slider {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: var(--border);
+  border-radius: 12px;
+  transition: background .2s;
+  flex-shrink: 0;
+}
+.toggle-slider::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform .2s;
+}
+.toggle-row input:checked + .toggle-slider {
+  background: var(--pink);
+}
+.toggle-row input:checked + .toggle-slider::after {
+  transform: translateX(20px);
+}
 
 /* Print (PDF) */
 @media print {
