@@ -1,0 +1,42 @@
+[
+  {
+    "id": "Q1",
+    "question": "Je cherche une pratique pour briser la glace en debut d'atelier avec un grand groupe de 50 personnes.",
+    "criteres": ["briser la glace", "grand groupe", "ouverture", "glace"]
+  },
+  {
+    "id": "Q2",
+    "question": "Comment faire une retrospective avec mon equipe agile pour ameliorer nos sprints ?",
+    "criteres": ["retrospective", "amelioration", "sprint", "feedback"]
+  },
+  {
+    "id": "Q3",
+    "question": "Je veux prioriser les fonctionnalites de mon produit avec mon equipe. Que me recommandez-vous ?",
+    "criteres": ["prioriser", "fonctionnalites", "MoSCoW", "decision"]
+  },
+  {
+    "id": "Q4",
+    "question": "Quelle pratique utiliser pour comprendre les besoins profonds de mes utilisateurs ?",
+    "criteres": ["utilisateur", "empathie", "besoin", "cible"]
+  },
+  {
+    "id": "Q5",
+    "question": "Je cherche une methode pour analyser un probleme complexe en equipe.",
+    "criteres": ["probleme", "analyse", "cause", "resolution"]
+  },
+  {
+    "id": "Q6",
+    "question": "Comment estimer la charge de travail avec mon equipe de developpement ?",
+    "criteres": ["estimation", "charge", "Planning Poker", "story point"]
+  },
+  {
+    "id": "Q7",
+    "question": "Je veux un exercice pour ameliorer la communication et la cohesion dans mon equipe.",
+    "criteres": ["communication", "cohesion", "equipe", "confiance"]
+  },
+  {
+    "id": "Q8",
+    "question": "J'ai un groupe de 30 personnes, comment animer une discussion inclusive sans que certains dominent ?",
+    "criteres": ["discussion", "groupe", "inclusif", "Fishbowl"]
+  }
+]

@@ -5,6 +5,7 @@ Launch: python -m Agent.Main.main [--openai | --deepseek]
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -60,6 +61,27 @@ def _load_special_practices() -> list[dict]:
         return yaml.safe_load(f)
 
 
+def _is_query_rewriting_enabled() -> bool:
+    try:
+        return get_app_setting("query_rewriting") == "on"
+    except Exception:
+        return False
+
+
+def _is_hyde_enabled() -> bool:
+    try:
+        return get_app_setting("hyde") == "on"
+    except Exception:
+        return False
+
+
+def _is_rerank_enabled() -> bool:
+    try:
+        return get_app_setting("rerank") == "on"
+    except Exception:
+        return False
+
+
 # ── CLI args + LLM provider ───────────────────────────────────────────────────
 
 def _build_provider(mode: str):
@@ -73,12 +95,79 @@ def _build_provider(mode: str):
             api_key=key,
             model=cfg["llm"]["deepseek_model"],
             base_url=cfg["llm"]["deepseek_base_url"],
+            router_model=cfg["llm"]["deepseek_router_model"],
+            simple_model=cfg["llm"]["deepseek_simple_model"],
+            complex_model=cfg["llm"]["deepseek_complex_model"],
         )
     key = os.environ.get("OPENAI_API_KEY", "")
     if not key:
         raise ValueError("Clé OPENAI_API_KEY absente de la configuration.")
     from Agent.LLM.openai_provider import OpenAIProvider
-    return OpenAIProvider(api_key=key, model=cfg["llm"]["openai_model"])
+    return OpenAIProvider(
+        api_key=key,
+        model=cfg["llm"]["openai_model"],
+        router_model=cfg["llm"]["openai_router_model"],
+        simple_model=cfg["llm"]["openai_simple_model"],
+        complex_model=cfg["llm"]["openai_complex_model"],
+    )
+
+
+# ── Routing / classification d'intention ───────────────────────────────────────
+
+ROUTER_PROMPT = """Tu es un routeur de requêtes pour un assistant de conception d'ateliers.
+Analyse la demande ET le contexte de session fourni.
+Réponds UNIQUEMENT en JSON avec les clés complexite et categorie.
+
+Règles :
+- complexite = "simple" si : salutation, question directe, consultation d'info, recherche unique, reformulation
+- complexite = "complexe" si : analyse ou synthèse multi-étapes, création/modification lourde de session, planification détaillée, comparaison de plusieurs éléments, reconception complète
+
+Catégories : "salutation", "faq", "raisonnement", "code", "analyse"
+
+Exemples SIMPLES :
+- "Bonjour" -> {{"complexite": "simple", "categorie": "salutation"}}
+- "Liste les sessions" -> {{"complexite": "simple", "categorie": "faq"}}
+- "Cherche un icebreaker" -> {{"complexite": "simple", "categorie": "faq"}}
+- "Quelle est la durée ?" -> {{"complexite": "simple", "categorie": "faq"}}
+
+Exemples COMPLEXES :
+- "Analyse le contenu et suggère des améliorations" -> {{"complexite": "complexe", "categorie": "analyse"}}
+- "Conçois une session complète avec 4 pratiques" -> {{"complexite": "complexe", "categorie": "raisonnement"}}
+- "Compare les pratiques de brainstorming" -> {{"complexite": "complexe", "categorie": "analyse"}}
+- "Reconception complète de la session" -> {{"complexite": "complexe", "categorie": "raisonnement"}}
+
+Requête : {question}"""
+
+
+def classifier_intent(provider, user_msg: str, session_id: int, cfg: dict) -> dict:
+    routing_cfg = cfg.get("routing", {})
+    if not routing_cfg.get("enabled", True):
+        return {"complexite": "simple", "categorie": "faq"}
+
+    ctx = db_ses.get_session_context(session_id)
+    ctx_str = json.dumps(ctx, ensure_ascii=False, default=str) if ctx else "Pas de session"
+    full_question = f"Contexte session : {ctx_str}\n\nQuestion : {user_msg}"
+
+    messages = [
+        {"role": "system", "content": ROUTER_PROMPT.format(question=full_question)},
+    ]
+    try:
+        response, _ = call_llm_with_retry(
+            provider, messages, tools=None,
+            model=provider._router_model,
+            timeout=10, max_retries=1,
+        )
+        raw = (response.get("content") or "").strip()
+        parsed = json.loads(raw)
+        complexite = parsed.get("complexite", "simple")
+        categorie = parsed.get("categorie", "faq")
+        if complexite not in ("simple", "complexe"):
+            complexite = "simple"
+        if categorie not in ("salutation", "faq", "raisonnement", "code", "analyse"):
+            categorie = "faq"
+        return {"complexite": complexite, "categorie": categorie}
+    except Exception:
+        return {"complexite": "simple", "categorie": "faq"}
 
 
 # ── Agent tools definition ────────────────────────────────────────────────────
@@ -357,7 +446,13 @@ def _dispatch_tool(name: str, args: dict, session_id: int = 0, embedding_mode: s
         result = db_ses.list_sessions(args.get("facilitator_id"))
         return json.dumps(result, ensure_ascii=False, default=str)
     if name == "search_practices":
-        result = search_practices(args["query"], args.get("n_results", 5), embedding_mode=embedding_mode)
+        do_rewrite = _is_query_rewriting_enabled()
+        do_hyde = _is_hyde_enabled()
+        do_rerank = _is_rerank_enabled()
+        llm_mode = "deepseek" if os.environ.get("DEEPSEEK_API_KEY") and _state.get("llm_mode") == "deepseek" else "openai"
+        result = search_practices(args["query"], args.get("n_results", 5),
+                                  embedding_mode=embedding_mode, rewrite=do_rewrite, hyde=do_hyde,
+                                  rerank=do_rerank, rerank_mode=llm_mode)
         return json.dumps(result, ensure_ascii=False)
     if name == "get_session_context":
         result = db_ses.get_session_context(args["session_id"])
@@ -418,6 +513,69 @@ def _dispatch_tool(name: str, args: dict, session_id: int = 0, embedding_mode: s
         result = db_ct.list_teams(args.get("client_id"))
         return json.dumps(result, ensure_ascii=False)
     return json.dumps({"error": f"Unknown tool: {name}"})
+
+
+# ── Markdown to HTML ──────────────────────────────────────────────────────────
+
+def _md_to_html(md: str) -> str:
+    md = md.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    def _inline(text: str) -> str:
+        text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+        text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
+        text = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', r'<img src="\2" alt="\1" style="max-width:100%">', text)
+        text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" target="_blank" rel="noopener">\1</a>', text)
+        text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
+        return text
+
+    lines = md.split("\n")
+    html = []
+    in_list = False
+    list_type = None
+
+    def close_list():
+        nonlocal in_list, list_type
+        if in_list:
+            html.append(f"</{list_type}>")
+            in_list = False
+            list_type = None
+
+    for line in lines:
+        h = re.match(r'^(#{1,3})\s+(.+)$', line)
+        if h:
+            close_list()
+            html.append(f"<h{len(h.group(1))}>{_inline(h.group(2))}</h{len(h.group(1))}>")
+            continue
+
+        ul = re.match(r'^-\s+(.+)$', line)
+        if ul:
+            if not in_list or list_type != "ul":
+                close_list()
+                html.append("<ul>")
+                in_list = True
+                list_type = "ul"
+            html.append(f"<li>{_inline(ul.group(1))}</li>")
+            continue
+
+        ol = re.match(r'^\d+\.\s+(.+)$', line)
+        if ol:
+            if not in_list or list_type != "ol":
+                close_list()
+                html.append("<ol>")
+                in_list = True
+                list_type = "ol"
+            html.append(f"<li>{_inline(ol.group(1))}</li>")
+            continue
+
+        if not line.strip():
+            close_list()
+            continue
+
+        close_list()
+        html.append(f"<p>{_inline(line)}</p>")
+
+    close_list()
+    return "\n".join(html)
 
 
 # ── App factory ───────────────────────────────────────────────────────────────
@@ -681,11 +839,47 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
     @app.get("/api/practices/search")
     def search(q: str, n: int = 5):
         em = "openai" if _state["llm_mode"] == "openai" else "local"
-        return search_practices(q, n, embedding_mode=em)
+        llm_mode = _state["llm_mode"]
+        do_rewrite = _is_query_rewriting_enabled()
+        do_hyde = _is_hyde_enabled()
+        do_rerank = _is_rerank_enabled()
+        return search_practices(q, n, embedding_mode=em, rewrite=do_rewrite, hyde=do_hyde,
+                                rerank=do_rerank, rerank_mode=llm_mode)
 
     @app.get("/api/practices/special")
     def get_special():
         return _load_special_practices()
+
+    @app.get("/api/practices/{practice_id}/card")
+    def get_practice_card(practice_id: str):
+        pratiques_dir = _BASE_DIR / "pratiques"
+        pattern = f"{practice_id.zfill(3)}-*.md"
+        matches = sorted(pratiques_dir.glob(pattern))
+        if not matches:
+            raise HTTPException(404, "Practice card not found")
+        content = matches[0].read_text(encoding="utf-8")
+        fm = re.match(r'^---\s*\n(.*?)\n---\s*\n(.*)', content, re.DOTALL)
+        if not fm:
+            raise HTTPException(500, "Invalid practice file format")
+        meta = yaml.safe_load(fm.group(1)) or {}
+        body_html = _md_to_html(fm.group(2).strip())
+        illustration = meta.get("illustration", "")
+        if illustration:
+            illustration = re.sub(r'^\.\./', '/', illustration)
+        return {
+            "titre": meta.get("titre", ""),
+            "categorie": meta.get("categorie", ""),
+            "phase": meta.get("phase", ""),
+            "difficulte": meta.get("difficulte", ""),
+            "duree": meta.get("duree", ""),
+            "participants": meta.get("participants", ""),
+            "icone_code": meta.get("icone_code", ""),
+            "source": meta.get("source", ""),
+            "url": meta.get("url", ""),
+            "pdf": meta.get("pdf", ""),
+            "illustration": illustration,
+            "body_html": body_html,
+        }
 
     # Mascots
     @app.get("/api/mascots")
@@ -762,7 +956,7 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
 
     # ── App settings ─────────────────────────────────────────────────────────
 
-    class VoiceModeBody(BaseModel):
+    class ToggleBody(BaseModel):
         enabled: bool
 
     @app.get("/api/settings/voice")
@@ -771,8 +965,35 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
         return {"enabled": val == "on"}
 
     @app.post("/api/settings/voice")
-    def set_voice(body: VoiceModeBody):
+    def set_voice(body: ToggleBody):
         set_app_setting("voice_mode", "on" if body.enabled else "off")
+        return {"enabled": body.enabled}
+
+    @app.get("/api/settings/query_rewriting")
+    def get_query_rewriting():
+        return {"enabled": _is_query_rewriting_enabled()}
+
+    @app.post("/api/settings/query_rewriting")
+    def set_query_rewriting(body: ToggleBody):
+        set_app_setting("query_rewriting", "on" if body.enabled else "off")
+        return {"enabled": body.enabled}
+
+    @app.get("/api/settings/hyde")
+    def get_hyde():
+        return {"enabled": _is_hyde_enabled()}
+
+    @app.post("/api/settings/hyde")
+    def set_hyde(body: ToggleBody):
+        set_app_setting("hyde", "on" if body.enabled else "off")
+        return {"enabled": body.enabled}
+
+    @app.get("/api/settings/rerank")
+    def get_rerank():
+        return {"enabled": _is_rerank_enabled()}
+
+    @app.post("/api/settings/rerank")
+    def set_rerank(body: ToggleBody):
+        set_app_setting("rerank", "on" if body.enabled else "off")
         return {"enabled": body.enabled}
 
     # ── Agent chat ────────────────────────────────────────────────────────────
@@ -794,11 +1015,31 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
         except RateLimitError as exc:
             raise HTTPException(status_code=429, detail=str(exc))
 
+        # ── Classification d'intention + sélection du modèle ──────────────────
+        cfg = _load_config()
+        routing = classifier_intent(_state["provider"], user_msg, session_id, cfg)
+        complexity = routing["complexite"]
+        categorie = routing["categorie"]
+
+        provider = _state["provider"]
+        if complexity == "complexe":
+            current_model = provider._complex_model
+            reasoning_effort = None
+        else:
+            current_model = provider._simple_model
+            reasoning_effort = None
+
         cost_cfg = get_cost_config()
         trace = create_trace(
             "agent_chat",
             session_id=str(session_id) if session_id else None,
-            metadata={"llm_mode": _state["llm_mode"], "session_id": session_id},
+            metadata={
+                "llm_mode": _state["llm_mode"],
+                "session_id": session_id,
+                "complexite": complexity,
+                "categorie": categorie,
+                "model_used": current_model,
+            },
             input=user_msg,
         )
 
@@ -833,9 +1074,12 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
             log_event(
                 session_id=session_id,
                 event_type="llm",
-                summary=f"LLM → appel #{iteration+1} en cours…",
+                summary=f"LLM → appel #{iteration+1} en cours… ({current_model})",
                 payload=json.dumps({
                     "mode": _state["llm_mode"],
+                    "complexite": complexity,
+                    "categorie": categorie,
+                    "model": current_model,
                     "status": "pending",
                     "request": request_messages,
                 }, ensure_ascii=False),
@@ -846,11 +1090,13 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
 
             try:
                 response, usage = call_llm_with_retry(
-                    _state["provider"],
+                    provider,
                     messages,
                     TOOLS,
                     timeout=int(os.environ.get("LLM_TIMEOUT_SECONDS", 20)),
                     max_retries=3,
+                    model=current_model,
+                    reasoning_effort=reasoning_effort,
                 )
             except LLMTimeoutError as exc:
                 log_event(
@@ -877,13 +1123,16 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
             cost = (t_in * cost_cfg["cost_in"] + t_out * cost_cfg["cost_out"]) / 1_000_000
             create_llm_generation(
                 trace, "llm_call",
-                model=getattr(_state["provider"], "_model", "unknown"),
+                model=current_model,
                 messages=messages, response=response, usage=usage,
                 duration_ms=llm_ms, cost=cost,
             )
 
             payload = json.dumps({
                 "mode": _state["llm_mode"],
+                "complexite": complexity,
+                "categorie": categorie,
+                "model": current_model,
                 "status": "done",
                 "request": request_messages,
                 "tool_calls_requested": len(response.get("tool_calls") or []),
@@ -892,7 +1141,7 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
             log_event(
                 session_id=session_id,
                 event_type="llm",
-                summary=f"LLM — {t_in}T in, {t_out}T out — {llm_ms}ms",
+                summary=f"LLM ({current_model}) — {t_in}T in, {t_out}T out — {llm_ms}ms",
                 payload=payload,
                 tokens_in=t_in,
                 tokens_out=t_out,
@@ -916,8 +1165,8 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
                 log_event(
                     session_id=session_id,
                     event_type="resolution",
-                    summary=f"{'✓ Résolu' if resolved else '✗ Non résolu'} — {total_ms}ms",
-                    payload=json.dumps({"resolved": resolved, "reply_preview": display_text[:200]}),
+                    summary=f"{'✓ Résolu' if resolved else '✗ Non résolu'} — {total_ms}ms ({current_model})",
+                    payload=json.dumps({"resolved": resolved, "reply_preview": display_text[:200], "model": current_model, "categorie": categorie}),
                     duration_ms=total_ms,
                     resolved=resolved,
                 )
@@ -925,7 +1174,7 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
                 add_message(session_id, "user", user_msg)
                 add_message(session_id, "assistant", display_text)
                 flush()
-                return {"reply": display_text, "tool_results": tool_results}
+                return {"reply": display_text, "tool_results": tool_results, "complexite": complexity, "categorie": categorie}
 
             # Execute tool calls
             messages.append(response)
@@ -976,7 +1225,7 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
                   summary=f"✗ Max itérations — {total_ms}ms",
                   payload="{}", duration_ms=total_ms, resolved=False)
         flush()
-        return {"reply": "Désolé, la requête a pris trop de cycles.", "tool_results": tool_results}
+        return {"reply": "Désolé, la requête a pris trop de cycles.", "tool_results": tool_results, "complexite": complexity, "categorie": categorie}
 
     return app
 

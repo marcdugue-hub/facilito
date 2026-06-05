@@ -290,6 +290,35 @@
             <p style="color:var(--muted);font-size:.82rem;margin-top:4px">Sélectionnez une voix pour l'écouter.</p>
           </div>
 
+          <!-- RAG -->
+          <div class="section-block">
+            <h3>Recherche RAG</h3>
+            <div class="form-row">
+              <label class="toggle-row">
+                <input type="checkbox" id="rewrite-toggle" onchange="App.toggleRewrite(this.checked)">
+                <span class="toggle-slider"></span>
+                Reformulation de requête
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="toggle-row">
+                <input type="checkbox" id="hyde-toggle" onchange="App.toggleHyde(this.checked)">
+                <span class="toggle-slider"></span>
+                HyDE (document hypothétique)
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="toggle-row">
+                <input type="checkbox" id="rerank-toggle" onchange="App.toggleRerank(this.checked)">
+                <span class="toggle-slider"></span>
+                Re-ranking LLM
+              </label>
+            </div>
+            <p style="color:var(--muted);font-size:.82rem;margin-top:4px">
+              Les options sont appliquées au prochain appel RAG de l'agent.
+            </p>
+          </div>
+
         </div>
 
         <!-- ── Tab : Tableau de bord ────────────────── -->
@@ -371,6 +400,14 @@
     <textarea id="chat-input-mobile" rows="1" style="flex:1;resize:none;min-height:40px;max-height:120px;border-radius:10px;padding:8px 12px;font-size:.88rem;border:1.5px solid var(--border)" placeholder="Message…"></textarea>
     <button id="mic-btn-mobile" class="mic-btn" onclick="App.toggleVoiceInput()" title="Dicter un message">🎤</button>
     <button style="flex-shrink:0;width:40px;height:40px;border-radius:50%;background:var(--pink);color:#fff;border:none;font-size:1.1rem;display:flex;align-items:center;justify-content:center" onclick="App.sendChatMobile()">&#9658;</button>
+  </div>
+</div>
+
+<!-- Practice card modal -->
+<div id="practice-card-modal" class="modal-overlay" style="display:none" onclick="App.closePracticeCard(event)">
+  <div class="modal-content">
+    <button class="modal-close" onclick="App.closePracticeCard()">✕</button>
+    <div id="practice-card-body"></div>
   </div>
 </div>
 

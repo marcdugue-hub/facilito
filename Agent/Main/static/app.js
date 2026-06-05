@@ -325,6 +325,7 @@ const App = (() => {
           <span style="font-size:.8rem;color:var(--muted)">min</span>
         </span>
         <span class="practice-actions">
+          ${p.source !== "special" ? `<button class="btn-icon" onclick="App.showPracticeCard('${p.practice_id}')" title="Voir la fiche">📄</button>` : ''}
           ${i > 0 ? `<button class="btn-icon" onclick="App.movePractice(${p.id},'up')" title="Monter">▲</button>` : '<button class="btn-icon" disabled style="opacity:.3">▲</button>'}
           ${i < list.length - 1 ? `<button class="btn-icon" onclick="App.movePractice(${p.id},'down')" title="Descendre">▼</button>` : '<button class="btn-icon" disabled style="opacity:.3">▼</button>'}
           <button class="btn-icon" onclick="App.removePractice(${p.id})" title="Supprimer" style="color:var(--red)">✕</button>
@@ -406,6 +407,46 @@ const App = (() => {
 
   function showSpecialPracticeMenu()  { document.getElementById("special-practice-menu").style.display = ""; }
   function hideSpecialPracticeMenu() { document.getElementById("special-practice-menu").style.display = "none"; }
+
+  // ── Practice card ──────────────────────────────────────────────────────────
+  async function showPracticeCard(practiceId) {
+    const modal = document.getElementById("practice-card-modal");
+    const body = document.getElementById("practice-card-body");
+    body.innerHTML = '<p style="text-align:center;color:var(--muted);padding:40px 0">Chargement…</p>';
+    modal.style.display = "flex";
+    document.body.style.overflow = "hidden";
+    try {
+      const data = await get(`/api/practices/${practiceId}/card`);
+      let html = `<div class="practice-card">`;
+      html += `<h1 class="pc-title">${esc(data.titre)}</h1>`;
+      const tags = [];
+      if (data.categorie) tags.push(data.categorie);
+      if (data.phase) tags.push(data.phase);
+      if (data.difficulte) tags.push(data.difficulte);
+      if (data.duree) tags.push(`⏱ ${data.duree}`);
+      if (data.participants) tags.push(`👥 ${data.participants}`);
+      if (tags.length) html += `<div class="pc-tags">${tags.map(t => `<span class="pc-tag">${esc(t)}</span>`).join("")}</div>`;
+      if (data.illustration) html += `<img class="pc-illustration" src="${esc(data.illustration)}" alt="${esc(data.titre)}">`;
+      html += `<div class="pc-body">${data.body_html}</div>`;
+      if (data.url || data.pdf) {
+        html += `<div class="pc-links">`;
+        if (data.url) html += `<a class="btn btn-outline btn-sm" href="${esc(data.url)}" target="_blank" rel="noopener">🔗 Voir sur le site</a>`;
+        if (data.pdf) html += `<a class="btn btn-outline btn-sm" href="${esc(data.pdf)}" target="_blank" rel="noopener">📄 Fiche PDF</a>`;
+        html += `</div>`;
+      }
+      html += `</div>`;
+      body.innerHTML = html;
+    } catch (e) {
+      body.innerHTML = `<p style="color:var(--red);text-align:center;padding:40px 0">Erreur lors du chargement de la fiche.</p>`;
+    }
+  }
+
+  function closePracticeCard(e) {
+    if (e && e.target !== e.currentTarget) return;
+    document.getElementById("practice-card-modal").style.display = "none";
+    document.getElementById("practice-card-body").innerHTML = "";
+    document.body.style.overflow = "";
+  }
 
   async function addSpecialPractice() {
     const id = document.getElementById("select-special").value;
@@ -618,15 +659,24 @@ const App = (() => {
     breadcrumb([{ label: "Réglages" }]);
     showDashTab("settings");
     _populateVoiceSelect();
-    const [config, voice] = await Promise.all([
+    const [config, voice, rewrite, hyde, rerank] = await Promise.all([
       get("/api/config/llm").catch(() => ({ mode: "openai" })),
       get("/api/settings/voice").catch(() => ({ enabled: false })),
+      get("/api/settings/query_rewriting").catch(() => ({ enabled: false })),
+      get("/api/settings/hyde").catch(() => ({ enabled: false })),
+      get("/api/settings/rerank").catch(() => ({ enabled: false })),
     ]);
     const sel = document.getElementById("llm-mode-select");
     if (sel) sel.value = config.mode;
     _voiceModeEnabled = voice.enabled;
-    const toggle = document.getElementById("voice-mode-toggle");
-    if (toggle) toggle.checked = _voiceModeEnabled;
+    const vt = document.getElementById("voice-mode-toggle");
+    if (vt) vt.checked = _voiceModeEnabled;
+    const rt = document.getElementById("rewrite-toggle");
+    if (rt) rt.checked = rewrite.enabled;
+    const ht = document.getElementById("hyde-toggle");
+    if (ht) ht.checked = hyde.enabled;
+    const rrt = document.getElementById("rerank-toggle");
+    if (rrt) rrt.checked = rerank.enabled;
   }
 
   function showDashTab(tab) {
@@ -1036,6 +1086,18 @@ const App = (() => {
     }
   }
 
+  function toggleRewrite(enabled) {
+    post("/api/settings/query_rewriting", { enabled });
+  }
+
+  function toggleHyde(enabled) {
+    post("/api/settings/hyde", { enabled });
+  }
+
+  function toggleRerank(enabled) {
+    post("/api/settings/rerank", { enabled });
+  }
+
   function changeVoice(name) {
     _voice.selected = _voice.voices.find(v => v.name === name) || _voice.selected;
     if (_voice.selected) {
@@ -1076,5 +1138,6 @@ const App = (() => {
     sendChat, sendChatMobile, toggleMobileAgent,
     toggleVoiceInput, changeVoice, toggleVoiceMode,
     exportPDF,
+    showPracticeCard, closePracticeCard,
   };
 })();

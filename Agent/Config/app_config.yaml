@@ -20,8 +20,19 @@ embedding:
 
 llm:
   openai_model: "gpt-4o"
+  openai_router_model: "gpt-4o-mini"
+  openai_simple_model: "gpt-4o-mini"
+  openai_complex_model: "gpt-4o"
   deepseek_model: "deepseek-chat"
+  deepseek_router_model: "deepseek-chat"
+  deepseek_simple_model: "deepseek-chat"
+  deepseek_complex_model: "deepseek-reasoner"
   deepseek_base_url: "https://api.deepseek.com"
+
+routing:
+  enabled: true
 
 agent:
   memory_size: 10
+  query_rewriting: false
+  hyde: false

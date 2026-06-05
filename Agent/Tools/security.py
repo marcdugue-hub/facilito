@@ -145,9 +145,16 @@ def _normalize_llm_exception(exc: Exception) -> Exception:
     return ExternalServiceError(f"Erreur inattendue : {message[:200]}")
 
 
-def _call_llm(provider: Any, messages: list[dict], tools: list[dict] | None, timeout: int) -> tuple[dict, dict]:
+def _call_llm(
+    provider: Any,
+    messages: list[dict],
+    tools: list[dict] | None,
+    timeout: int,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
+) -> tuple[dict, dict]:
     def _invoke():
-        return provider.chat(messages, tools)
+        return provider.chat(messages, tools, model=model, reasoning_effort=reasoning_effort)
 
     with ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(_invoke)
@@ -167,6 +174,8 @@ def call_llm_with_retry(
     timeout: int | None = None,
     max_retries: int = 3,
     backoff_base: float = 0.5,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> tuple[dict, dict]:
     if timeout is None:
         timeout = _LLM_TIMEOUT_SECONDS
@@ -174,7 +183,7 @@ def call_llm_with_retry(
     last_exc: Exception | None = None
     for attempt in range(max_retries):
         try:
-            return _call_llm(provider, messages, tools, timeout)
+            return _call_llm(provider, messages, tools, timeout, model=model, reasoning_effort=reasoning_effort)
         except (LLMTimeoutError, InvalidAPIKeyError, ExternalServiceError) as exc:
             last_exc = exc
             if isinstance(exc, InvalidAPIKeyError):

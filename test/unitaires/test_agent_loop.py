@@ -33,6 +33,10 @@ def _tool_call(name, args, call_id="call_001"):
 def mock_provider():
     provider = MagicMock()
     provider.chat.return_value = _static_llm_response()
+    provider._model = "gpt-4o"
+    provider._router_model = "gpt-4o-mini"
+    provider._simple_model = "gpt-4o-mini"
+    provider._complex_model = "gpt-4o"
     return provider
 
 
@@ -89,7 +93,9 @@ def test_agent_chat_strips_non_resolu_marker(client, mock_provider):
 def test_agent_chat_calls_rag_tool(client, mock_provider):
     """L'agent appelle search_practices, obtient des résultats, puis répond."""
     tc = _tool_call("search_practices", {"query": "icebreaker", "n_results": 3})
+    _routing = _static_llm_response(content="Simple")
     mock_provider.chat.side_effect = [
+        _routing,
         _static_llm_response(tool_calls=[tc], content=None),
         _static_llm_response("J'ai trouvé des pratiques. ||RÉSOLU||"),
     ]
@@ -121,7 +127,9 @@ def test_agent_session_id_injected_even_if_llm_wrong(client, mock_provider, sess
         "duration_minutes": 45,
         "source": "rag",
     })
+    _routing = _static_llm_response(content="Simple")
     mock_provider.chat.side_effect = [
+        _routing,
         _static_llm_response(tool_calls=[tc], content=None),
         _static_llm_response("Pratique ajoutée ! ||RÉSOLU||"),
     ]
@@ -144,7 +152,9 @@ def test_agent_tool_error_does_not_cause_500(client, mock_provider):
         # session_id=0 sera injecté → foreign key error sur la DB vide
         "practice_id": "1", "titre": "Test", "duration_minutes": 30, "source": "rag",
     })
+    _routing = _static_llm_response(content="Simple")
     mock_provider.chat.side_effect = [
+        _routing,
         _static_llm_response(tool_calls=[tc], content=None),
         _static_llm_response("Erreur gérée. ||NON_RÉSOLU||"),
     ]
@@ -206,7 +216,9 @@ def test_agent_logs_non_resolu_as_false(client, mock_provider):
 def test_agent_logs_rag_event_when_rag_tool_called(client, mock_provider):
     """Un appel à search_practices est loggé comme event_type='rag'."""
     tc = _tool_call("search_practices", {"query": "test"})
+    _routing = _static_llm_response(content="Simple")
     mock_provider.chat.side_effect = [
+        _routing,
         _static_llm_response(tool_calls=[tc], content=None),
         _static_llm_response("Résultat. ||RÉSOLU||"),
     ]
@@ -358,7 +370,9 @@ def test_agent_calls_list_sessions_tool(client, mock_provider):
     create_session(fac["id"], "Session Test", "2026-07-01", objective="Test")
 
     tc = _tool_call("list_sessions", {})
+    _routing = _static_llm_response(content="Simple")
     mock_provider.chat.side_effect = [
+        _routing,
         _static_llm_response(tool_calls=[tc], content=None),
         _static_llm_response("Voici les sessions. ||RÉSOLU||"),
     ]
@@ -379,7 +393,9 @@ def test_agent_calls_list_sessions_filtered_by_facilitator(client, mock_provider
     create_session(fac["id"], "Session Alice", "2026-07-01", objective="Test")
 
     tc = _tool_call("list_sessions", {"facilitator_id": fac["id"]})
+    _routing = _static_llm_response(content="Simple")
     mock_provider.chat.side_effect = [
+        _routing,
         _static_llm_response(tool_calls=[tc], content=None),
         _static_llm_response("Voici les sessions d'Alice. ||RÉSOLU||"),
     ]

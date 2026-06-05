@@ -27,11 +27,28 @@ def _get_local_collection():
     return client.get_collection(cfg["chroma_local"]["collection"])
 
 
-def search_practices(query: str, n_results: int = 5, embedding_mode: str = "local") -> list[dict]:
+def search_practices(query: str, n_results: int = 5, embedding_mode: str = "local",
+                     rewrite: bool = False, hyde: bool = False,
+                     rerank: bool = False, rerank_mode: str = "openai") -> list[dict]:
     """Semantic search in ChromaDB. Returns list of practice metadata dicts.
     
     embedding_mode: "openai" → OpenAI ChromaDB, "local" → sentence-transformers ChromaDB.
+    rewrite: if True, reformulate query via gpt-4o-mini before embedding search.
+    hyde: if True, generate a hypothetical document via gpt-4o-mini and embed
+          that instead of the query (HyDE method). Takes precedence over rewrite.
+    rerank: if True, retrieve top-10 vectorially then re-rank with LLM (LLM-as-Reranker).
+    rerank_mode: "openai" or "deepseek" — which LLM to use for re-ranking.
     """
+    if hyde:
+        from Agent.Tools.RAG.hyde import generer_hypothese
+        query = generer_hypothese(query)
+    elif rewrite:
+        from Agent.Tools.RAG.rewrite import rewrite_query
+        query = rewrite_query(query)
+
+    # When reranking, fetch enough candidates (at least 10) for the LLM to re-rank
+    fetch_k = max(n_results, 10) if rerank else n_results
+
     if embedding_mode == "openai":
         from Agent.Tools.RAG.embedder import get_openai_embeddings
         query_embedding = get_openai_embeddings([query])[0]
@@ -43,7 +60,7 @@ def search_practices(query: str, n_results: int = 5, embedding_mode: str = "loca
 
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=min(n_results, collection.count()),
+        n_results=min(fetch_k, collection.count()),
         include=["metadatas", "documents", "distances"],
     )
 
@@ -64,4 +81,9 @@ def search_practices(query: str, n_results: int = 5, embedding_mode: str = "loca
             "resume": meta.get("resume", ""),
             "score": round(1 - results["distances"][0][i], 3),
         })
+
+    if rerank and len(practices) > 1:
+        from Agent.Tools.RAG.rerank import rerank_chunks
+        practices = rerank_chunks(query, practices, top_n=n_results, mode=rerank_mode)
+
     return practices

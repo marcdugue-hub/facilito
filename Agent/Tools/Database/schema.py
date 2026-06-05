@@ -135,5 +135,8 @@ def init_db() -> None:
             value TEXT NOT NULL
         );
         INSERT OR IGNORE INTO app_settings (key, value) VALUES ('voice_mode', 'off');
+        INSERT OR IGNORE INTO app_settings (key, value) VALUES ('query_rewriting', 'off');
+        INSERT OR IGNORE INTO app_settings (key, value) VALUES ('hyde', 'off');
+        INSERT OR IGNORE INTO app_settings (key, value) VALUES ('rerank', 'off');
         """)
         _migrate(conn)
