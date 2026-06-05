@@ -256,3 +256,138 @@ def test_dispatch_create_session(session_in_db):
     }))
     assert result["title"] == "Nouvel Atelier"
     assert result["status"] == "draft"
+
+
+# ── Tests list_sessions ────────────────────────────────────────────────────
+
+def test_dispatch_list_sessions_empty():
+    from Agent.Main.main import _dispatch_tool
+    result = json.loads(_dispatch_tool("list_sessions", {}))
+    assert result == []
+
+
+def test_dispatch_list_sessions_all():
+    from Agent.Tools.Database.facilitators import create_facilitator
+    from Agent.Tools.Database.sessions import create_session
+    from Agent.Main.main import _dispatch_tool
+    fac = create_facilitator("Alice")
+    create_session(fac["id"], "Session A", "2026-07-01", objective="Obj A")
+    create_session(fac["id"], "Session B", "2026-07-02", objective="Obj B")
+    result = json.loads(_dispatch_tool("list_sessions", {}))
+    assert len(result) == 2
+    assert result[0]["title"] == "Session B"  # plus récente d'abord
+
+
+def test_dispatch_list_sessions_filtered_by_facilitator():
+    from Agent.Tools.Database.facilitators import create_facilitator
+    from Agent.Tools.Database.sessions import create_session
+    from Agent.Main.main import _dispatch_tool
+    fac_a = create_facilitator("Alice")
+    fac_b = create_facilitator("Bob")
+    create_session(fac_a["id"], "Session A1", "2026-07-01")
+    create_session(fac_a["id"], "Session A2", "2026-07-02")
+    create_session(fac_b["id"], "Session B1", "2026-07-01")
+    result = json.loads(_dispatch_tool("list_sessions", {"facilitator_id": fac_a["id"]}))
+    assert len(result) == 2
+    assert all(s["title"].startswith("Session A") for s in result)
+
+
+# ── Tests REST API — list sessions ─────────────────────────────────────────
+
+def test_rest_list_sessions_by_facilitator(client):
+    from Agent.Tools.Database.facilitators import create_facilitator
+    from Agent.Tools.Database.sessions import create_session
+    fac = create_facilitator("Alice")
+    create_session(fac["id"], "Session 1", "2026-07-01")
+    create_session(fac["id"], "Session 2", "2026-07-02")
+    response = client.get(f"/api/facilitators/{fac['id']}/sessions")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+    assert data[0]["facilitator_name"] == "Alice"
+
+
+def test_rest_list_sessions_empty_facilitator(client):
+    from Agent.Tools.Database.facilitators import create_facilitator
+    fac = create_facilitator("Bob")
+    response = client.get(f"/api/facilitators/{fac['id']}/sessions")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+# ── Tests REST API — create session with all fields ─────────────────────────
+
+def test_rest_create_session_with_start_time_and_objective(client):
+    from Agent.Tools.Database.facilitators import create_facilitator
+    fac = create_facilitator("Marc")
+    response = client.post("/api/sessions", json={
+        "facilitator_id": fac["id"],
+        "title": "Atelier OKR",
+        "date": "2026-06-09",
+        "start_time": "14:00",
+        "objective": "Réorganiser la DSI autour de pratiques IA et OKR",
+    })
+    assert response.status_code == 201
+    data = response.json()
+    assert data["start_time"] == "14:00"
+    assert data["objective"] == "Réorganiser la DSI autour de pratiques IA et OKR"
+    assert data["date"] == "2026-06-09"
+
+
+def test_rest_create_session_minimal(client):
+    from Agent.Tools.Database.facilitators import create_facilitator
+    fac = create_facilitator("Marc")
+    response = client.post("/api/sessions", json={
+        "facilitator_id": fac["id"],
+        "title": "Minimal",
+    })
+    assert response.status_code == 201
+    data = response.json()
+    assert data["title"] == "Minimal"
+    assert data["start_time"] is None
+    assert data["objective"] is None
+
+
+# ── Tests agent list_sessions tool call ─────────────────────────────────────
+
+def test_agent_calls_list_sessions_tool(client, mock_provider):
+    """L'agent appelle list_sessions quand l'utilisateur demande ses sessions."""
+    from Agent.Tools.Database.facilitators import create_facilitator
+    from Agent.Tools.Database.sessions import create_session
+    fac = create_facilitator("Fac Test")
+    create_session(fac["id"], "Session Test", "2026-07-01", objective="Test")
+
+    tc = _tool_call("list_sessions", {})
+    mock_provider.chat.side_effect = [
+        _static_llm_response(tool_calls=[tc], content=None),
+        _static_llm_response("Voici les sessions. ||RÉSOLU||"),
+    ]
+    response = client.post("/api/agent/chat",
+                           json={"session_id": 0, "message": "Quelles sont mes sessions ?"})
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["tool_results"]) == 1
+    assert data["tool_results"][0]["tool"] == "list_sessions"
+    assert "session" in data["reply"].lower()
+
+
+def test_agent_calls_list_sessions_filtered_by_facilitator(client, mock_provider):
+    """L'agent appelle list_sessions avec un facilitator_id quand demandé."""
+    from Agent.Tools.Database.facilitators import create_facilitator
+    from Agent.Tools.Database.sessions import create_session
+    fac = create_facilitator("Alice")
+    create_session(fac["id"], "Session Alice", "2026-07-01", objective="Test")
+
+    tc = _tool_call("list_sessions", {"facilitator_id": fac["id"]})
+    mock_provider.chat.side_effect = [
+        _static_llm_response(tool_calls=[tc], content=None),
+        _static_llm_response("Voici les sessions d'Alice. ||RÉSOLU||"),
+    ]
+    response = client.post("/api/agent/chat",
+                           json={"session_id": 0, "message": "Liste les sessions d'Alice"})
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["tool_results"]) == 1
+    assert data["tool_results"][0]["tool"] == "list_sessions"
+    # Vérifie que le bon facilitator_id a été passé à l'outil
+    assert data["tool_results"][0]["args"]["facilitator_id"] == fac["id"]

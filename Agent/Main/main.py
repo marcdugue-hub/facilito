@@ -36,6 +36,9 @@ from Agent.Tools.security import (
     validate_request_rate,
     validate_user_input,
 )
+from Agent.Tools.langfuse_handler import (
+    get_langfuse, is_enabled, create_trace, create_llm_generation, flush,
+)
 from Agent.Tools.erreur import (
     ExternalServiceError,
     InvalidAPIKeyError,
@@ -92,6 +95,20 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "list_sessions",
+            "description": "Liste toutes les sessions avec leur date, statut et facilitateur. Utilise CET outil quand l'utilisateur demande de lister des sessions, consulter un calendrier, voir les sessions à venir, ou filtrer par date/période. Les résultats contiennent les dates — tu peux ensuite les filtrer toi-même par période.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "facilitator_id": {"type": "integer", "description": "Filtrer par ID du facilitateur (optionnel)."},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "search_practices",
             "description": "RECHERCHE OBLIGATOIRE dans la base RAG pour trouver des pratiques de facilitation. À appeler AVANT add_practice pour voir les pratiques disponibles. Fournir un query décrivant le type de pratique recherché (ex: 'icebreaker', 'idéation', 'rétrospective').",
             "parameters": {
@@ -129,6 +146,7 @@ TOOLS = [
                     "facilitator_id": {"type": "integer"},
                     "title": {"type": "string"},
                     "date": {"type": "string", "description": "Format ISO YYYY-MM-DD"},
+                    "start_time": {"type": "string", "description": "Heure de début au format HH:MM (ex: 14:00)"},
                     "objective": {"type": "string"},
                 },
                 "required": ["facilitator_id", "title"],
@@ -335,6 +353,9 @@ def _dispatch_tool(name: str, args: dict, session_id: int = 0, embedding_mode: s
     if name == "list_facilitators":
         result = db_fac.list_facilitators()
         return json.dumps(result, ensure_ascii=False)
+    if name == "list_sessions":
+        result = db_ses.list_sessions(args.get("facilitator_id"))
+        return json.dumps(result, ensure_ascii=False, default=str)
     if name == "search_practices":
         result = search_practices(args["query"], args.get("n_results", 5), embedding_mode=embedding_mode)
         return json.dumps(result, ensure_ascii=False)
@@ -343,8 +364,11 @@ def _dispatch_tool(name: str, args: dict, session_id: int = 0, embedding_mode: s
         return json.dumps(result, ensure_ascii=False, default=str)
     if name == "create_session":
         result = db_ses.create_session(
-            args["facilitator_id"], args["title"],
-            args.get("date"), args.get("objective"),
+            facilitator_id=args["facilitator_id"],
+            title=args["title"],
+            date=args.get("date"),
+            start_time=args.get("start_time"),
+            objective=args.get("objective"),
         )
         return json.dumps(result, ensure_ascii=False, default=str)
     if name == "update_session":
@@ -770,6 +794,14 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
         except RateLimitError as exc:
             raise HTTPException(status_code=429, detail=str(exc))
 
+        cost_cfg = get_cost_config()
+        trace = create_trace(
+            "agent_chat",
+            session_id=str(session_id) if session_id else None,
+            metadata={"llm_mode": _state["llm_mode"], "session_id": session_id},
+            input=user_msg,
+        )
+
         ctx = db_ses.get_session_context(session_id)
         system_prompt = build_system_prompt(ctx)
         history = get_history(session_id)
@@ -828,16 +860,27 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
                     payload=str(exc),
                     duration_ms=int((time.time() - llm_start) * 1000),
                 )
+                flush()
                 raise HTTPException(status_code=504, detail="Le service LLM n'a pas répondu à temps.")
             except InvalidAPIKeyError:
+                flush()
                 raise HTTPException(status_code=401, detail="Clé API invalide.")
             except ExternalServiceError as exc:
+                flush()
                 raise HTTPException(status_code=502, detail=f"Erreur externe du LLM : {str(exc)}")
 
             llm_ms = int((time.time() - llm_start) * 1000)
 
             t_in  = usage.get("prompt_tokens", 0)
             t_out = usage.get("completion_tokens", 0)
+
+            cost = (t_in * cost_cfg["cost_in"] + t_out * cost_cfg["cost_out"]) / 1_000_000
+            create_llm_generation(
+                trace, "llm_call",
+                model=getattr(_state["provider"], "_model", "unknown"),
+                messages=messages, response=response, usage=usage,
+                duration_ms=llm_ms, cost=cost,
+            )
 
             payload = json.dumps({
                 "mode": _state["llm_mode"],
@@ -881,6 +924,7 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
 
                 add_message(session_id, "user", user_msg)
                 add_message(session_id, "assistant", display_text)
+                flush()
                 return {"reply": display_text, "tool_results": tool_results}
 
             # Execute tool calls
@@ -931,6 +975,7 @@ def create_app(llm_mode: str = "openai") -> FastAPI:
         log_event(session_id=session_id, event_type="resolution",
                   summary=f"✗ Max itérations — {total_ms}ms",
                   payload="{}", duration_ms=total_ms, resolved=False)
+        flush()
         return {"reply": "Désolé, la requête a pris trop de cycles.", "tool_results": tool_results}
 
     return app

@@ -7,3 +7,4 @@ sentence-transformers>=3.0.0
 pyyaml>=6.0.1
 python-frontmatter>=1.1.0
 weasyprint>=62.0
+langfuse>=2.53.0,<3.0.0

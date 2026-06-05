@@ -178,5 +178,32 @@
     "eval_pertinence": true,
     "eval_fidelite": true,
     "eval_coherence": true
+  },
+  {
+    "id": 21,
+    "categorie": "Multi-tools",
+    "question": "Crée une session pour Marc le 9 juin de 14h à 15h30 pour l'équipe DSI de Dupont SAS. L'objectif est de réorganiser la DSI autour de pratiques IA et OKR. Ajoute ensuite Le Produit ROI (60 min) pour prioriser les besoins et Le ROTI Agile (1 min) pour obtenir un feedback rapide.",
+    "comportement_attendu": "L'agent doit enchaîner : (1) chercher le facilitateur Marc avec list_facilitators(), (2) créer la session avec le titre, la date '2026-06-09', start_time='14:00' et l'objectif correct (le texte ne doit PAS finir dans start_time), (3) chercher le client Dupont SAS avec list_clients(), (4) chercher l'équipe DSI avec list_teams(client_id=...), (5) ajouter l'équipe à la session via add_team_to_session(), (6) rechercher les pratiques dans le RAG (Le Produit ROI, Le ROTI Agile) et les ajouter via add_practice() dans l'ordre. L'objectif doit être dans le champ objective, pas dans start_time.",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
+  },
+  {
+    "id": 22,
+    "categorie": "Ambiguë",
+    "question": "Je voudrais voir le planning de la semaine prochaine.",
+    "comportement_attendu": "L'agent doit identifier l'ambiguïté : il ne sait pas de quel facilitateur il s'agit. Il doit demander le nom du facilitateur ou son ID avant d'appeler list_sessions(). Il peut aussi appeler list_facilitators() pour lister les choix possibles. Il ne doit PAS appeler list_sessions() sans d'abord clarifier le facilitateur concerné.",
+    "eval_pertinence": false,
+    "eval_fidelite": false,
+    "eval_coherence": true
+  },
+  {
+    "id": 23,
+    "categorie": "Factuelle simple",
+    "question": "Donne-moi la liste complète des participants de la session actuelle avec leur rôle.",
+    "comportement_attendu": "L'agent doit appeler get_session_context(session_id) ou /api/sessions/{sid}/participants pour obtenir la liste des participants. Il doit lister chaque participant avec son prénom, nom et rôle. Si la session n'a pas de participants, il doit l'indiquer clairement et proposer d'en ajouter. Une réponse vague ou sans outil appelé est insuffisante.",
+    "eval_pertinence": true,
+    "eval_fidelite": true,
+    "eval_coherence": true
   }
 ]

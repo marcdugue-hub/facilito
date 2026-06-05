@@ -5,12 +5,24 @@ from .participants import add_participant_to_session
 
 # ── Sessions ──────────────────────────────────────────────────────────────────
 
-def list_sessions(facilitator_id: int) -> list[dict]:
+def list_sessions(facilitator_id: int | None = None) -> list[dict]:
     with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT * FROM sessions WHERE facilitator_id = ? ORDER BY date DESC, created_at DESC",
-            (facilitator_id,),
-        ).fetchall()
+        if facilitator_id is not None:
+            rows = conn.execute(
+                """SELECT s.*, f.name AS facilitator_name
+                   FROM sessions s
+                   LEFT JOIN facilitators f ON f.id = s.facilitator_id
+                   WHERE s.facilitator_id = ?
+                   ORDER BY s.date DESC, s.created_at DESC""",
+                (facilitator_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT s.*, f.name AS facilitator_name
+                   FROM sessions s
+                   LEFT JOIN facilitators f ON f.id = s.facilitator_id
+                   ORDER BY s.date DESC, s.created_at DESC"""
+            ).fetchall()
     return [dict(r) for r in rows]
 
 
