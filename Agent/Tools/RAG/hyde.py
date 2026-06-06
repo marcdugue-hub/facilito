@@ -1,42 +1,33 @@
 """HyDE (Hypothetical Document Embeddings) for RAG — generates a hypothetical document
 to use as the search query instead of the raw question."""
 
-from functools import lru_cache
-from pathlib import Path
-
-from dotenv import load_dotenv
-
-_BASE_DIR = Path(__file__).resolve().parents[3]
-load_dotenv(_BASE_DIR / "Agent" / ".env")
+from Agent.Tools.security import call_llm_with_retry
+from Agent.LLM.provider_factory import build_provider
 
 
-@lru_cache(maxsize=1)
-def _get_client():
-    from openai import OpenAI
-    import os
-    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-
-def generer_hypothese(question: str) -> str:
+def generer_hypothese(question: str, mode: str = "openai", provider=None) -> str:
     """Generate a hypothetical document answering the question.
 
-    The hypothesis is written as an excerpt from an official CNIL/RGPD guide.
+    The hypothesis is written as an excerpt from a facilitation practice guide.
     It is NEVER shown to the user — only used as a search query for RAG.
     """
-    client = _get_client()
-    r = client.chat.completions.create(
-        model="gpt-4o-mini",
-        temperature=0.3,
-        max_tokens=180,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Redige un court paragraphe repondant a la question, "
-                    "comme un extrait de guide CNIL/RGPD officiel."
-                ),
-            },
-            {"role": "user", "content": question},
-        ],
+    if provider is None:
+        provider = build_provider(mode)
+    model = provider._simple_model
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Redige un court paragraphe repondant a la question, "
+                "comme un extrait de fiche pratique d'atelier collaboratif. "
+                "Decris les objectifs, le deroule, les consignes et le materiel necessaire."
+            ),
+        },
+        {"role": "user", "content": question},
+    ]
+
+    response, usage = call_llm_with_retry(
+        provider, messages, max_retries=2, timeout=15, model=model,
     )
-    return r.choices[0].message.content.strip()
+    return response.get("content", "").strip()

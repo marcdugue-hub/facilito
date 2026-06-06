@@ -1,4 +1,4 @@
-"""Tests unitaires — Agent/Tools/RAG/search.py + _is_rag_fallback dans main.py"""
+"""Tests unitaires — Agent/Tools/RAG/search.py + _is_rag_fallback dans tool_dispatch.py"""
 import json
 from unittest.mock import patch, MagicMock
 
@@ -100,24 +100,24 @@ def test_search_practices_n_results_capped_by_collection_size():
 # ── _is_rag_fallback ──────────────────────────────────────────────────────────
 
 def test_is_rag_fallback_low_score():
-    from Agent.Main.main import _is_rag_fallback
+    from Agent.Tools.tool_dispatch import _is_rag_fallback
     result_str = json.dumps([{"practice_id": "1", "score": 0.15}])
     assert _is_rag_fallback("search_practices", result_str) is True
 
 
 def test_is_rag_fallback_high_score():
-    from Agent.Main.main import _is_rag_fallback
+    from Agent.Tools.tool_dispatch import _is_rag_fallback
     result_str = json.dumps([{"practice_id": "1", "score": 0.85}])
     assert _is_rag_fallback("search_practices", result_str) is False
 
 
 def test_is_rag_fallback_empty_results():
-    from Agent.Main.main import _is_rag_fallback
+    from Agent.Tools.tool_dispatch import _is_rag_fallback
     assert _is_rag_fallback("search_practices", "[]") is True
 
 
 def test_is_rag_fallback_non_rag_tool():
-    from Agent.Main.main import _is_rag_fallback
+    from Agent.Tools.tool_dispatch import _is_rag_fallback
     assert _is_rag_fallback("add_practice", "{}") is False
     assert _is_rag_fallback("list_facilitators", "[]") is False
 

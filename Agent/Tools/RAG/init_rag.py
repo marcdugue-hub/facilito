@@ -8,15 +8,11 @@ import sys
 from pathlib import Path
 
 import frontmatter
-import yaml
 
 _BASE_DIR = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_BASE_DIR))
 
-
-def _load_config() -> dict:
-    with open(_BASE_DIR / "Agent" / "Config" / "app_config.yaml") as f:
-        return yaml.safe_load(f)
+from Agent.Config.config import load_config, get_project_root
 
 
 def _parse_duration(duree: str) -> int:
@@ -37,7 +33,7 @@ def _extract_section(content: str, section: str) -> str:
 
 
 def load_practices() -> list[dict]:
-    practices_dir = _BASE_DIR / "pratiques"
+    practices_dir = get_project_root() / "pratiques"
     practices = []
     for md_file in sorted(practices_dir.glob("*.md")):
         try:
@@ -83,7 +79,7 @@ def load_practices() -> list[dict]:
 def init_chroma(mode: str = "openai", reinit: bool = False) -> None:
     import chromadb
 
-    cfg = _load_config()
+    cfg = load_config()
 
     if mode == "openai":
         from Agent.Tools.RAG.embedder import get_openai_embeddings
@@ -94,7 +90,7 @@ def init_chroma(mode: str = "openai", reinit: bool = False) -> None:
         embed_fn = get_embeddings
         chroma_cfg = cfg["chroma_local"]
 
-    chroma_path = str(_BASE_DIR / chroma_cfg["path"])
+    chroma_path = str(get_project_root() / chroma_cfg["path"])
     collection_name = chroma_cfg["collection"]
 
     client = chromadb.PersistentClient(path=chroma_path)

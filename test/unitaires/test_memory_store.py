@@ -54,19 +54,19 @@ def test_add_raw_message():
 # ── build_system_prompt ───────────────────────────────────────────────────────
 
 def test_build_system_prompt_no_context_contains_role():
-    from Agent.Tools.Memory.store import build_system_prompt
+    from Agent.Prompts.system_prompt import build_system_prompt
     prompt = build_system_prompt(None)
     assert "facilitat" in prompt.lower()
 
 
 def test_build_system_prompt_no_context_contains_resolution_marker():
-    from Agent.Tools.Memory.store import build_system_prompt
+    from Agent.Prompts.system_prompt import build_system_prompt
     prompt = build_system_prompt(None)
     assert "||RÉSOLU||" in prompt
 
 
 def test_build_system_prompt_includes_session_id():
-    from Agent.Tools.Memory.store import build_system_prompt
+    from Agent.Prompts.system_prompt import build_system_prompt
     ctx = {
         "id": 42, "title": "Mon Atelier", "date": "2026-07-01",
         "status": "confirmed", "objective": "Test", "total_duration": 90,
@@ -77,7 +77,7 @@ def test_build_system_prompt_includes_session_id():
 
 
 def test_build_system_prompt_includes_session_info():
-    from Agent.Tools.Memory.store import build_system_prompt
+    from Agent.Prompts.system_prompt import build_system_prompt
     ctx = {
         "id": 1, "title": "Atelier Créativité", "date": "2026-07-01",
         "status": "draft", "objective": "Générer des idées", "total_duration": 60,
@@ -90,7 +90,7 @@ def test_build_system_prompt_includes_session_info():
 
 
 def test_build_system_prompt_includes_participants():
-    from Agent.Tools.Memory.store import build_system_prompt
+    from Agent.Prompts.system_prompt import build_system_prompt
     ctx = {
         "id": 1, "title": "T", "date": None, "status": "draft",
         "objective": None, "total_duration": 0,
@@ -107,7 +107,7 @@ def test_build_system_prompt_includes_participants():
 
 
 def test_build_system_prompt_includes_practices():
-    from Agent.Tools.Memory.store import build_system_prompt
+    from Agent.Prompts.system_prompt import build_system_prompt
     ctx = {
         "id": 1, "title": "T", "date": None, "status": "draft",
         "objective": None, "total_duration": 45,

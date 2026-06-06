@@ -56,7 +56,11 @@ Agent/
     │   ├── participants.py      # participants CRUD + session/team membership
     │   └── clients_teams.py     # clients + teams CRUD
     ├── Memory/
-    │   └── store.py             # in-memory deque (10 exchanges), build_system_prompt()
+    │   └── store.py             # in-memory deque (10 exchanges) — conversation history
+    ├── Prompts/
+    │   └── system_prompt.py     # build_system_prompt() with session context injection
+    ├── Observability/
+    │   └── langfuse_handler.py  # LangFuse tracing, cost tracking
     └── RAG/
         ├── init_rag.py          # parse pratiques/*.md → embed → Chroma
         └── search.py            # search_practices(query, n) via OpenAI embeddings
@@ -79,8 +83,8 @@ SQLite file at `facilito.db` (root). Key relations:
 ## Agent
 
 The agent loop is in `main.py:agent_chat()`. It:
-1. Builds a system prompt from `build_system_prompt(session_context)` — includes session state
-2. Prepends the 10-exchange history from `store.py`
+1. Builds a system prompt from `build_system_prompt(session_context)` in `Agent/Prompts/system_prompt.py` — includes session state
+2. Prepends the 10-exchange history from `Agent/Tools/Memory/store.py`
 3. Calls the LLM provider with `TOOLS` (11 function schemas)
 4. Dispatches tool calls via `_dispatch_tool(name, args)` in a loop (max 10 iterations)
 5. Returns final text response + list of `tool_results` to the frontend

@@ -17,9 +17,20 @@ python -m Agent.Tools.RAG.init_rag --local      # creates data/chroma_db_local (
 python -m Agent.Tools.RAG.init_rag --reinit     # wipe and rebuild
 python -m Agent.Tools.RAG.init_rag --reinit --local  # wipe and rebuild local
 
-# Tests — run after every code change before reporting done
-python -m pytest test/unitaires/ -v                          # 118 tests across 9 files
+# Tests unitaires — run after every code change before reporting done
+python -m pytest test/unitaires/ -v                          # 127 tests across 9 files
 python -m pytest test/unitaires/ -v --cov=Agent --cov-report=term-missing
+
+# Tests d'intégration — run before merging / after major changes — 7 fichiers, ~75 tests
+python -m pytest test/integration/ -v                        # tous les tests d'intégration
+python -m pytest test/integration/ -v -k "not openai and not deepseek"  # sans LLM (DB + web + PDF + RAG local)
+python -m pytest test/integration/ -v -k "openai or deepseek"           # seulement les tests LLM
+
+# Les tests d'intégration LLM (openai/deepseek) utilisent de vraies clés API.
+# - Si une clé est invalide → les tests marqués correspondants sont ignorés.
+# - Si les deux clés sont invalides → l'utilisateur est invité à confirmer.
+# Prérequis : RAG local initialisé (python -m Agent.Tools.RAG.init_rag --local)
+# Couverture : LLM (OpenAI + DeepSeek), RAG (local + OpenAI), interface web, export PDF, base de données
 
 # LLM evaluation (server must be running)
 python test/llm_judge/run_judge.py --openai
@@ -56,7 +67,9 @@ Embeddings **always** use OpenAI `text-embedding-3-small` regardless of `--opena
 | Errors | `Agent/Tools/erreur.py` | 7 custom exceptions (FacilitoError, InvalidUserInputError, InjectionDetectedError, RateLimitError, LLMTimeoutError, InvalidAPIKeyError, ExternalServiceError) |
 | RAG | `Agent/Tools/RAG/` | ChromaDB init + semantic search (OpenAI embeddings); dual collection (OpenAI + local sentence-transformers) |
 | Embedding | `Agent/Tools/RAG/embedder.py` | `get_embeddings()` (local `paraphrase-multilingual-MiniLM-L12-v2`) and `get_openai_embeddings()` (`text-embedding-3-small`) |
-| Memory | `Agent/Tools/Memory/store.py` | In-memory deque (10 exchanges), `build_system_prompt()` with session context injection |
+| Memory | `Agent/Tools/Memory/store.py` | In-memory deque (10 exchanges) — conversation history |
+| Prompts | `Agent/Prompts/system_prompt.py` | `build_system_prompt()` with session context injection (extracted from Memory) |
+| Observability | `Agent/Observability/langfuse_handler.py` | LangFuse tracing, LLM generation tracking, cost logging (moved from Tools/) |
 | LLM providers | `Agent/LLM/` | Abstract base → OpenAI (`gpt-4o`) / DeepSeek (`deepseek-chat`) |
 | Config | `Agent/Config/` | `app_config.yaml` (paths, ports, model names), `special_practices.yaml` (Accueil/Pause/Déjeuner/Débriefing) |
 | Frontend | `Agent/Main/static/` | SPA: `index.html`, `app.js` (vanilla JS IIFE, 4 screens), `style.css` (responsive grid) |

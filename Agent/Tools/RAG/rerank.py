@@ -1,30 +1,13 @@
 """LLM-as-Reranker — re-rank retrieved chunks by relevance."""
 
 import json
-from functools import lru_cache
-from pathlib import Path
 
-from dotenv import load_dotenv
-
-_BASE_DIR = Path(__file__).resolve().parents[3]
-load_dotenv(_BASE_DIR / "Agent" / ".env")
-
-
-@lru_cache(maxsize=2)
-def _get_client(mode: str = "openai"):
-    from openai import OpenAI
-    import os
-    if mode == "deepseek":
-        return OpenAI(api_key=os.getenv("DEEPSEEK_API_KEY"), base_url="https://api.deepseek.com/v1")
-    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-
-def _model_name(mode: str) -> str:
-    return "deepseek-chat" if mode == "deepseek" else "gpt-4o-mini"
+from Agent.Tools.security import call_llm_with_retry
+from Agent.LLM.provider_factory import build_provider
 
 
 def rerank_chunks(question: str, chunks: list[dict], top_n: int = 3,
-                  mode: str = "openai") -> list[dict]:
+                  mode: str = "openai", provider=None) -> list[dict]:
     """Re-rank chunks by LLM relevance judgment.
 
     Retourne les top_n chunks re-classés par pertinence.
@@ -33,8 +16,9 @@ def rerank_chunks(question: str, chunks: list[dict], top_n: int = 3,
     if not chunks:
         return []
 
-    client = _get_client(mode)
-    model = _model_name(mode)
+    if provider is None:
+        provider = build_provider(mode)
+    model = provider._simple_model
 
     docs = ""
     for i, c in enumerate(chunks):
@@ -46,29 +30,27 @@ def rerank_chunks(question: str, chunks: list[dict], top_n: int = 3,
         ]))[:500]
         docs += f"\n--- DOC {i} [{source}] ---\n{contenu}\n"
 
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                f"Classe TOUS les {len(chunks)} documents du PLUS au MOINS pertinent "
+                f"par rapport à la question. "
+                'Réponds UNIQUEMENT au format JSON {"ranking":[indices]} avec TOUS '
+                f"les indices de 0 à {len(chunks)-1}."
+            ),
+        },
+        {
+            "role": "user",
+            "content": f"QUESTION : {question}\n\nDOCUMENTS :{docs}",
+        },
+    ]
+
     try:
-        r = client.chat.completions.create(
-            model=model,
-            temperature=0,
-            max_tokens=100,
-            response_format={"type": "json_object"},
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        f"Classe TOUS les {len(chunks)} documents du PLUS au MOINS pertinent "
-                        f"par rapport à la question. "
-                        'Réponds UNIQUEMENT au format JSON {"ranking":[indices]} avec TOUS '
-                        f"les indices de 0 à {len(chunks)-1}."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": f"QUESTION : {question}\n\nDOCUMENTS :{docs}",
-                },
-            ],
+        response, usage = call_llm_with_retry(
+            provider, messages, max_retries=2, timeout=15, model=model,
         )
-        raw = r.choices[0].message.content
+        raw = response.get("content", "")
         ordre = json.loads(raw)["ranking"]
     except Exception:
         return chunks[:top_n]

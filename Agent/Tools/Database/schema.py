@@ -1,16 +1,10 @@
 import sqlite3
-import os
-from pathlib import Path
+from Agent.Config.config import load_config, get_project_root
 
-import yaml
-
-_BASE_DIR = Path(__file__).resolve().parents[3]
 
 def _db_path() -> str:
-    cfg_path = _BASE_DIR / "Agent" / "Config" / "app_config.yaml"
-    with open(cfg_path) as f:
-        cfg = yaml.safe_load(f)
-    db_file = _BASE_DIR / cfg["database"]["path"]
+    cfg = load_config()
+    db_file = get_project_root() / cfg["database"]["path"]
     db_file.parent.mkdir(parents=True, exist_ok=True)
     return str(db_file)
 

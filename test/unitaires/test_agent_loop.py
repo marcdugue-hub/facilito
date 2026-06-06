@@ -43,7 +43,7 @@ def mock_provider():
 @pytest.fixture
 def client(mock_provider):
     """Crée un TestClient FastAPI avec LLM mocké."""
-    with patch("Agent.Main.main._build_provider", return_value=mock_provider):
+    with patch("Agent.Main.main.build_provider", return_value=mock_provider):
         from Agent.Main.main import create_app
         from fastapi.testclient import TestClient
         app = create_app("openai")
@@ -103,7 +103,7 @@ def test_agent_chat_calls_rag_tool(client, mock_provider):
                     "score": 0.9, "duration_minutes": 30, "phase": "Ouverture",
                     "difficulte": "Facile", "duree": "30'", "participants": "10-50",
                     "icone_code": "ICE01", "url": "", "objectif": "Test", "resume": "Test"}]
-    with patch("Agent.Main.main.search_practices", return_value=rag_results):
+    with patch("Agent.Tools.RAG.search.search_practices", return_value=rag_results):
         response = client.post("/api/agent/chat",
                                json={"session_id": 0, "message": "Propose un icebreaker"})
     assert response.status_code == 200
@@ -222,47 +222,47 @@ def test_agent_logs_rag_event_when_rag_tool_called(client, mock_provider):
         _static_llm_response(tool_calls=[tc], content=None),
         _static_llm_response("Résultat. ||RÉSOLU||"),
     ]
-    with patch("Agent.Main.main.search_practices", return_value=[]):
+    with patch("Agent.Tools.RAG.search.search_practices", return_value=[]):
         client.post("/api/agent/chat", json={"session_id": 0, "message": "Cherche"})
     from Agent.Tools.Database.analytics import get_logs
     rag_logs = get_logs(types=["rag"])
     assert len(rag_logs) == 1
 
 
-# ── Tests _dispatch_tool directement ────────────────────────────────────────
+# ── Tests dispatch_tool directement ─────────────────────────────────────────
 
 def test_dispatch_list_facilitators_empty():
-    from Agent.Main.main import _dispatch_tool
-    result = json.loads(_dispatch_tool("list_facilitators", {}))
+    from Agent.Tools.tool_dispatch import dispatch_tool
+    result = json.loads(dispatch_tool("list_facilitators", {}))
     assert result == []
 
 
 def test_dispatch_list_facilitators_with_data():
     from Agent.Tools.Database.facilitators import create_facilitator
-    from Agent.Main.main import _dispatch_tool
+    from Agent.Tools.tool_dispatch import dispatch_tool
     create_facilitator("Alice")
-    result = json.loads(_dispatch_tool("list_facilitators", {}))
+    result = json.loads(dispatch_tool("list_facilitators", {}))
     assert len(result) == 1
     assert result[0]["name"] == "Alice"
 
 
 def test_dispatch_unknown_tool_returns_error():
-    from Agent.Main.main import _dispatch_tool
-    result = json.loads(_dispatch_tool("unknown_tool_xyz", {}))
+    from Agent.Tools.tool_dispatch import dispatch_tool
+    result = json.loads(dispatch_tool("unknown_tool_xyz", {}))
     assert "error" in result
 
 
 def test_dispatch_create_client():
-    from Agent.Main.main import _dispatch_tool
-    result = json.loads(_dispatch_tool("create_client", {"name": "Acme Corp"}))
+    from Agent.Tools.tool_dispatch import dispatch_tool
+    result = json.loads(dispatch_tool("create_client", {"name": "Acme Corp"}))
     assert result["name"] == "Acme Corp"
     assert "id" in result
 
 
 def test_dispatch_create_session(session_in_db):
-    from Agent.Main.main import _dispatch_tool
+    from Agent.Tools.tool_dispatch import dispatch_tool
     fac_id = session_in_db["facilitator"]["id"]
-    result = json.loads(_dispatch_tool("create_session", {
+    result = json.loads(dispatch_tool("create_session", {
         "facilitator_id": fac_id,
         "title": "Nouvel Atelier",
     }))
@@ -273,19 +273,19 @@ def test_dispatch_create_session(session_in_db):
 # ── Tests list_sessions ────────────────────────────────────────────────────
 
 def test_dispatch_list_sessions_empty():
-    from Agent.Main.main import _dispatch_tool
-    result = json.loads(_dispatch_tool("list_sessions", {}))
+    from Agent.Tools.tool_dispatch import dispatch_tool
+    result = json.loads(dispatch_tool("list_sessions", {}))
     assert result == []
 
 
 def test_dispatch_list_sessions_all():
     from Agent.Tools.Database.facilitators import create_facilitator
     from Agent.Tools.Database.sessions import create_session
-    from Agent.Main.main import _dispatch_tool
+    from Agent.Tools.tool_dispatch import dispatch_tool
     fac = create_facilitator("Alice")
     create_session(fac["id"], "Session A", "2026-07-01", objective="Obj A")
     create_session(fac["id"], "Session B", "2026-07-02", objective="Obj B")
-    result = json.loads(_dispatch_tool("list_sessions", {}))
+    result = json.loads(dispatch_tool("list_sessions", {}))
     assert len(result) == 2
     assert result[0]["title"] == "Session B"  # plus récente d'abord
 
@@ -293,13 +293,13 @@ def test_dispatch_list_sessions_all():
 def test_dispatch_list_sessions_filtered_by_facilitator():
     from Agent.Tools.Database.facilitators import create_facilitator
     from Agent.Tools.Database.sessions import create_session
-    from Agent.Main.main import _dispatch_tool
+    from Agent.Tools.tool_dispatch import dispatch_tool
     fac_a = create_facilitator("Alice")
     fac_b = create_facilitator("Bob")
     create_session(fac_a["id"], "Session A1", "2026-07-01")
     create_session(fac_a["id"], "Session A2", "2026-07-02")
     create_session(fac_b["id"], "Session B1", "2026-07-01")
-    result = json.loads(_dispatch_tool("list_sessions", {"facilitator_id": fac_a["id"]}))
+    result = json.loads(dispatch_tool("list_sessions", {"facilitator_id": fac_a["id"]}))
     assert len(result) == 2
     assert all(s["title"].startswith("Session A") for s in result)
 

@@ -1,21 +1,13 @@
 """Embedding functions — local (sentence-transformers) and OpenAI."""
 from functools import lru_cache
-from pathlib import Path
 
-import yaml
-
-_BASE_DIR = Path(__file__).resolve().parents[3]
-
-
-def _load_config() -> dict:
-    with open(_BASE_DIR / "Agent" / "Config" / "app_config.yaml") as f:
-        return yaml.safe_load(f)
+from Agent.Config.config import load_config
 
 
 @lru_cache(maxsize=1)
 def _get_model():
     from sentence_transformers import SentenceTransformer
-    cfg = _load_config()
+    cfg = load_config()
     return SentenceTransformer(cfg["embedding"]["model"])
 
 
@@ -34,7 +26,7 @@ def get_openai_embeddings(texts: list[str]) -> list[list[float]]:
     if not api_key:
         raise ValueError("OPENAI_API_KEY is required for OpenAI embeddings")
     client = OpenAI(api_key=api_key)
-    cfg = _load_config()
+    cfg = load_config()
     model = cfg["embedding"]["openai_model"]
     response = client.embeddings.create(model=model, input=texts)
     return [d.embedding for d in response.data]
